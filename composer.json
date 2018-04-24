@@ -1,5 +1,5 @@
 {
-	"name": "afterlogic/aurora-module-team-contacts",
+	"name": "afterlogic/aurora-module-shared-contacts",
 	"type": "aurora-module",
 	"require":{
 		"php":">=5.4.0",
@@ -7,6 +7,6 @@
 		"afterlogic/aurora-module-contacts": "~0.8"
 	},
 	"extra": {
-		"installer-name": "TeamContacts"
+		"installer-name": "SharedContacts"
 	}
 }
