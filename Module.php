@@ -1,16 +1,15 @@
 <?php
 /**
- * @copyright Copyright (c) 2017, Afterlogic Corp.
- * @license AGPL-3.0 or Afterlogic Software License
- *
- * This code is licensed under AGPLv3 license or Afterlogic Software License
- * if commercial version of the product was purchased.
- * For full statements of the licenses see LICENSE-AFTERLOGIC and LICENSE-AGPL3 files.
+ * This code is licensed under Afterlogic Software License.
+ * For full statements of the license see LICENSE file.
  */
 
 namespace Aurora\Modules\SharedContacts;
 
 /**
+ * @license https://afterlogic.com/products/common-licensing Afterlogic Software License
+ * @copyright Copyright (c) 2019, Afterlogic Corp.
+ *
  * @package Modules
  */
 class Module extends \Aurora\System\Module\AbstractLicensedModule
