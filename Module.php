@@ -22,6 +22,8 @@ class Module extends \Aurora\System\Module\AbstractLicensedModule
 		$this->subscribeEvent('Contacts::GetContactsByEmails::before', array($this, 'prepareFiltersFromStorage'));
 		
 		$this->subscribeEvent('Contacts::UpdateSharedContacts::after', array($this, 'onAfterUpdateSharedContacts'));
+
+		$this->subscribeEvent('Contacts::CheckAccess::after', array($this, 'onAfterCheckAccess'));
 	}
 	
 	public function onGetStorage(&$aStorages)
@@ -66,6 +68,24 @@ class Module extends \Aurora\System\Module\AbstractLicensedModule
 					}
 					$mResult = $oContacts->UpdateContact($oContact->toArray());
 				}
+			}
+		}
+	}
+
+	public function onAfterCheckAccess(&$aArgs, &$mResult)
+	{
+		$oUser = $aArgs['User'];
+		$oContact = isset($aArgs['Contact']) ? $aArgs['Contact'] : null;
+
+		if ($oContact instanceof \Aurora\Modules\Contacts\Classes\Contact && $oContact->Storage === 'shared')
+		{
+			if ($oUser->Role !== \Aurora\System\Enums\UserRole::SuperAdmin && $oUser->IdTenant !== $oContact->IdTenant)
+			{
+				$mResult = false;
+			}
+			else
+			{
+				$mResult = true;
 			}
 		}
 	}
