@@ -16,17 +16,17 @@ class Module extends \Aurora\System\Module\AbstractLicensedModule
 {
 	public function init() 
 	{
-		$this->subscribeEvent('Contacts::GetStorage', array($this, 'onGetStorage'));
+		$this->subscribeEvent('Contacts::GetStorages', array($this, 'onGetStorages'));
 		$this->subscribeEvent('Contacts::GetContacts::before', array($this, 'prepareFiltersFromStorage'));
 		$this->subscribeEvent('Contacts::Export::before', array($this, 'prepareFiltersFromStorage'));
 		$this->subscribeEvent('Contacts::GetContactsByEmails::before', array($this, 'prepareFiltersFromStorage'));
 		
 		$this->subscribeEvent('Contacts::UpdateSharedContacts::after', array($this, 'onAfterUpdateSharedContacts'));
 
-		$this->subscribeEvent('Contacts::CheckAccess::after', array($this, 'onAfterCheckAccess'));
+		$this->subscribeEvent('Contacts::CheckAccessToObject::after', array($this, 'onAfterCheckAccessToObject'));
 	}
 	
-	public function onGetStorage(&$aStorages)
+	public function onGetStorages(&$aStorages)
 	{
 		$aStorages[] = 'shared';
 	}
@@ -72,7 +72,7 @@ class Module extends \Aurora\System\Module\AbstractLicensedModule
 		}
 	}
 
-	public function onAfterCheckAccess(&$aArgs, &$mResult)
+	public function onAfterCheckAccessToObject(&$aArgs, &$mResult)
 	{
 		$oUser = $aArgs['User'];
 		$oContact = isset($aArgs['Contact']) ? $aArgs['Contact'] : null;
