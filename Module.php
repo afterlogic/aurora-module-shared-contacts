@@ -55,18 +55,19 @@ class Module extends \Aurora\System\Module\AbstractLicensedModule
 			$aUUIDs = isset($aArgs['UUIDs']) ? $aArgs['UUIDs'] : [];
 			foreach ($aUUIDs as $sUUID)
 			{
-				$oContact = $oContacts->GetContact($sUUID);
+				$oContact = $oContacts->GetContact($sUUID, $aArgs['UserId']);
 				if ($oContact)
 				{
 					if ($oContact->Storage === 'shared')
 					{
 						$oContact->Storage = 'personal';
+						$oContact->IdUser = $aArgs['UserId'];
 					}
 					else if ($oContact->Storage === 'personal')
 					{
 						$oContact->Storage = 'shared';
 					}
-					$mResult = $oContacts->UpdateContact($oContact->toArray());
+					$mResult = $oContacts->UpdateContact($aArgs['UserId'], $oContact->toArray());
 				}
 			}
 		}
