@@ -20,6 +20,7 @@ class Module extends \Aurora\System\Module\AbstractLicensedModule
 		$this->subscribeEvent('Contacts::GetContacts::before', array($this, 'prepareFiltersFromStorage'));
 		$this->subscribeEvent('Contacts::Export::before', array($this, 'prepareFiltersFromStorage'));
 		$this->subscribeEvent('Contacts::GetContactsByEmails::before', array($this, 'prepareFiltersFromStorage'));
+		$this->subscribeEvent('Contacts::GetContactsInfo::before', array($this, 'prepareFiltersFromStorage'));
 		
 		$this->subscribeEvent('Contacts::UpdateSharedContacts::after', array($this, 'onAfterUpdateSharedContacts'));
 
