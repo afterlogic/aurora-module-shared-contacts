@@ -6,6 +6,8 @@
 
 namespace Aurora\Modules\SharedContacts;
 
+use \Aurora\Modules\Contacts\Enums\StorageType;
+
 /**
  * @license https://afterlogic.com/products/common-licensing Afterlogic Software License
  * @copyright Copyright (c) 2019, Afterlogic Corp.
@@ -29,12 +31,12 @@ class Module extends \Aurora\System\Module\AbstractLicensedModule
 	
 	public function onGetStorages(&$aStorages)
 	{
-		$aStorages[] = 'shared';
+		$aStorages[] = StorageType::Shared;
 	}
 	
 	public function prepareFiltersFromStorage(&$aArgs, &$mResult)
 	{
-		if (isset($aArgs['Storage']) && ($aArgs['Storage'] === 'shared' || $aArgs['Storage'] === 'all'))
+		if (isset($aArgs['Storage']) && ($aArgs['Storage'] === StorageType::Shared || $aArgs['Storage'] === StorageType::All))
 		{
 			if (!isset($aArgs['Filters']) || !is_array($aArgs['Filters']))
 			{
@@ -44,32 +46,38 @@ class Module extends \Aurora\System\Module\AbstractLicensedModule
 			
 			$aArgs['Filters'][]['$AND'] = [
 				'IdTenant' => [$oUser->IdTenant, '='],
-				'Storage' => ['shared', '='],
+				'Storage' => [StorageType::Shared, '='],
 			];
 		}
 	}
 	
 	public function onAfterUpdateSharedContacts($aArgs, &$mResult)
 	{
-		$oContacts = \Aurora\System\Api::GetModuleDecorator('Contacts');
+		$oContacts = \Aurora\Modules\Contacts\Module::Decorator();
+		$aUUIDs = isset($aArgs['UUIDs']) ? $aArgs['UUIDs'] : [];
+
+		foreach ($aUUIDs as $sUUID)
 		{
-			$aUUIDs = isset($aArgs['UUIDs']) ? $aArgs['UUIDs'] : [];
-			foreach ($aUUIDs as $sUUID)
+			$oContact = $oContacts->GetContact($sUUID, $aArgs['UserId']);
+			if ($oContact instanceof \Aurora\Modules\Contacts\Classes\Contact)
 			{
-				$oContact = $oContacts->GetContact($sUUID, $aArgs['UserId']);
-				if ($oContact)
+				$sOldStorage = $oContact->Storage;
+				$iUserId = -1;
+
+				if ($oContact->Storage === StorageType::Shared)
 				{
-					if ($oContact->Storage === 'shared')
-					{
-						$oContact->Storage = 'personal';
-						$oContact->IdUser = $aArgs['UserId'];
-					}
-					else if ($oContact->Storage === 'personal')
-					{
-						$oContact->Storage = 'shared';
-					}
-					$mResult = $oContacts->UpdateContact($aArgs['UserId'], $oContact->toArray());
+					$oContact->Storage = StorageType::Personal;
+					$iUserId = $oContact->IdTenant;
+					$oContact->IdUser = $aArgs['UserId'];
 				}
+				else if ($oContact->Storage === StorageType::Personal)
+				{
+					$oContact->Storage = StorageType::Shared;
+					$iUserId = $oContact->IdUser;
+				}
+				// update CTag for previous storage
+				\Aurora\Modules\Contacts\Module::getInstance()->getManager()->updateCTag($iUserId, $sOldStorage);					
+				$mResult = $oContacts->UpdateContact($aArgs['UserId'], $oContact->toArray());
 			}
 		}
 	}
@@ -79,7 +87,7 @@ class Module extends \Aurora\System\Module\AbstractLicensedModule
 		$oUser = $aArgs['User'];
 		$oContact = isset($aArgs['Contact']) ? $aArgs['Contact'] : null;
 
-		if ($oContact instanceof \Aurora\Modules\Contacts\Classes\Contact && $oContact->Storage === 'shared')
+		if ($oContact instanceof \Aurora\Modules\Contacts\Classes\Contact && $oContact->Storage === StorageType::Shared)
 		{
 			if ($oUser->Role !== \Aurora\System\Enums\UserRole::SuperAdmin && $oUser->IdTenant !== $oContact->IdTenant)
 			{
