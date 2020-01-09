@@ -16,6 +16,8 @@ use \Aurora\Modules\Contacts\Enums\StorageType;
  */
 class Module extends \Aurora\System\Module\AbstractLicensedModule
 {
+	protected static $iStorageOrder = 10;
+
 	public function init() 
 	{
 		$this->subscribeEvent('Contacts::GetStorages', array($this, 'onGetStorages'));
@@ -31,7 +33,7 @@ class Module extends \Aurora\System\Module\AbstractLicensedModule
 	
 	public function onGetStorages(&$aStorages)
 	{
-		$aStorages[] = StorageType::Shared;
+		$aStorages[self::$iStorageOrder] = StorageType::Shared;
 	}
 	
 	public function prepareFiltersFromStorage(&$aArgs, &$mResult)
