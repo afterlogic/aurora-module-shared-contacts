@@ -21,10 +21,7 @@ class Module extends \Aurora\System\Module\AbstractLicensedModule
 	public function init() 
 	{
 		$this->subscribeEvent('Contacts::GetStorages', array($this, 'onGetStorages'));
-		$this->subscribeEvent('Contacts::GetContacts::before', array($this, 'prepareFiltersFromStorage'));
-		$this->subscribeEvent('Contacts::Export::before', array($this, 'prepareFiltersFromStorage'));
-		$this->subscribeEvent('Contacts::GetContactsByEmails::before', array($this, 'prepareFiltersFromStorage'));
-		$this->subscribeEvent('Contacts::GetContactsInfo::before', array($this, 'prepareFiltersFromStorage'));
+		$this->subscribeEvent('Contacts::PrepareFiltersFromStorage', array($this, 'prepareFiltersFromStorage'));
 		
 		$this->subscribeEvent('Contacts::UpdateSharedContacts::after', array($this, 'onAfterUpdateSharedContacts'));
 
@@ -40,13 +37,13 @@ class Module extends \Aurora\System\Module\AbstractLicensedModule
 	{
 		if (isset($aArgs['Storage']) && ($aArgs['Storage'] === StorageType::Shared || $aArgs['Storage'] === StorageType::All))
 		{
-			if (!isset($aArgs['Filters']) || !is_array($aArgs['Filters']))
+			if (!isset($mResult) || !is_array($mResult))
 			{
-				$aArgs['Filters'] = array();
+				$mResult = array();
 			}
 			$oUser = \Aurora\System\Api::getAuthenticatedUser();
 			
-			$aArgs['Filters'][]['$AND'] = [
+			$mResult[]['$AND'] = [
 				'IdTenant' => [$oUser->IdTenant, '='],
 				'Storage' => [StorageType::Shared, '='],
 			];
