@@ -14,7 +14,7 @@ use \Aurora\Modules\Contacts\Enums\StorageType;
  *
  * @package Modules
  */
-class Module extends \Aurora\System\Module\AbstractLicensedModule
+class Module extends \Aurora\System\Module\AbstractModule
 {
 	protected static $iStorageOrder = 10;
 
