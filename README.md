@@ -1,1 +1,1 @@
-# aurora-module-team-contacts
+# Aurora shared contacts module 
