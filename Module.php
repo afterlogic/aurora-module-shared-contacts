@@ -18,51 +18,43 @@ class Module extends \Aurora\System\Module\AbstractModule
 {
 	protected static $iStorageOrder = 10;
 
-	public function init() 
+	public function init()
 	{
 		$this->subscribeEvent('Contacts::GetStorages', array($this, 'onGetStorages'));
 		$this->subscribeEvent('Contacts::PrepareFiltersFromStorage', array($this, 'prepareFiltersFromStorage'));
-		
+
 		$this->subscribeEvent('Contacts::UpdateSharedContacts::after', array($this, 'onAfterUpdateSharedContacts'));
 
 		$this->subscribeEvent('Contacts::CheckAccessToObject::after', array($this, 'onAfterCheckAccessToObject'));
 		$this->subscribeEvent('Contacts::GetContactSuggestions', array($this, 'onGetContactSuggestions'));
 	}
-	
+
 	public function onGetStorages(&$aStorages)
 	{
 		$aStorages[self::$iStorageOrder] = StorageType::Shared;
 	}
-	
+
 	public function prepareFiltersFromStorage(&$aArgs, &$mResult)
 	{
 		if (isset($aArgs['Storage']) && ($aArgs['Storage'] === StorageType::Shared || $aArgs['Storage'] === StorageType::All))
 		{
-			if (!isset($mResult) || !is_array($mResult))
+			if (!isset($mResult))
 			{
-				$mResult = array();
+				$mResult = \Aurora\Modules\Contacts\Models\Contact::query();
 			}
-			$oUser = \Aurora\System\Api::getAuthenticatedUser();	
-
-			if (isset($aArgs['SortField']) && $aArgs['SortField'] === \Aurora\Modules\Contacts\Enums\SortField::Frequency)
-			{
-				$mResult[]['$AND'] = [
-					'IdTenant' => [$oUser->IdTenant, '='],
-					'Storage' => [StorageType::Shared, '='],
-					'Frequency' => [-1, '!='],
-					'DateModified' => ['NULL', 'IS NOT']
-				];
-			}
-			else
-			{
-				$mResult[]['$AND'] = [
-					'IdTenant' => [$oUser->IdTenant, '='],
-					'Storage' => [StorageType::Shared, '='],
-				];
-			}
+			$oUser = \Aurora\System\Api::getAuthenticatedUser();
+			$mResult = $mResult->orWhere(function($query) use ($oUser) {
+				$query = $query->where('IdTenant', $oUser->IdTenant)
+					->where('Storage', StorageType::Shared);
+				if (isset($aArgs['SortField']) && $aArgs['SortField'] === \Aurora\Modules\Contacts\Enums\SortField::Frequency)
+				{
+					$query->where('Frequency', '!=', -1)
+						->whereNotNull('DateModified');
+				}
+		    });
 		}
 	}
-	
+
 	public function onAfterUpdateSharedContacts($aArgs, &$mResult)
 	{
 		$oContacts = \Aurora\Modules\Contacts\Module::Decorator();
@@ -88,7 +80,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 					$iUserId = $oContact->IdUser;
 				}
 				// update CTag for previous storage
-				\Aurora\Modules\Contacts\Module::getInstance()->getManager()->updateCTag($iUserId, $sOldStorage);					
+				\Aurora\Modules\Contacts\Module::getInstance()->getManager()->updateCTag($iUserId, $sOldStorage);
 				$mResult = $oContacts->UpdateContact($aArgs['UserId'], $oContact->toArray());
 			}
 		}
@@ -117,12 +109,12 @@ class Module extends \Aurora\System\Module\AbstractModule
 		if ($aArgs['Storage'] === 'all' || $aArgs['Storage'] === StorageType::Shared)
 		{
 			$mResult[StorageType::Shared] = \Aurora\Modules\Contacts\Module::Decorator()->GetContacts(
-				$aArgs['UserId'], 
-				StorageType::Shared, 
-				0, 
-				$aArgs['Limit'], 
-				$aArgs['SortField'], 
-				$aArgs['SortOrder'], 
+				$aArgs['UserId'],
+				StorageType::Shared,
+				0,
+				$aArgs['Limit'],
+				$aArgs['SortField'],
+				$aArgs['SortOrder'],
 				$aArgs['Search']
 			);
 		}
