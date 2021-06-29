@@ -7,6 +7,7 @@
 namespace Aurora\Modules\SharedContacts;
 
 use \Aurora\Modules\Contacts\Enums\StorageType;
+use Aurora\Modules\Contacts\Models\Contact;
 
 /**
  * @license https://afterlogic.com/products/common-licensing Afterlogic Software License
@@ -63,7 +64,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 		foreach ($aUUIDs as $sUUID)
 		{
 			$oContact = $oContacts->GetContact($sUUID, $aArgs['UserId']);
-			if ($oContact instanceof \Aurora\Modules\Contacts\Classes\Contact)
+			if ($oContact instanceof Contact)
 			{
 				$sOldStorage = $oContact->Storage;
 				$iUserId = -1;
