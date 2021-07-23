@@ -92,7 +92,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 		$oUser = $aArgs['User'];
 		$oContact = isset($aArgs['Contact']) ? $aArgs['Contact'] : null;
 
-		if ($oContact instanceof \Aurora\Modules\Contacts\Classes\Contact && $oContact->Storage === StorageType::Shared)
+		if ($oContact instanceof \Aurora\Modules\Contacts\Models\Contact && $oContact->Storage === StorageType::Shared)
 		{
 			if ($oUser->Role !== \Aurora\System\Enums\UserRole::SuperAdmin && $oUser->IdTenant !== $oContact->IdTenant)
 			{
