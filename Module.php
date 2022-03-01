@@ -68,7 +68,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 			$oContact = $oContacts->GetContact($sUUID, $aArgs['UserId']);
 			if ($oContact instanceof Contact)
 			{
-				$sOldStorage = $oContact->Storage;
+				$sOldStorage = $oContact->getStorageWithId();
 				$iUserId = -1;
 
 				if ($oContact->Storage === StorageType::Shared)
