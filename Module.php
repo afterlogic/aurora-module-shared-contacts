@@ -42,9 +42,12 @@ class Module extends \Aurora\System\Module\AbstractModule
 		$this->subscribeEvent('Contacts::PopulateContactModel', array($this, 'onPopulateContactModel'));
 	}
 
-	protected function getAddressbooks($iUserId) 
+	public function GetAddressbooks($UserId) 
 	{
 		$mResult = [];
+
+		Api::checkUserRoleIsAtLeast(UserRole::NormalUser);
+		Api::CheckAccess($UserId);
 
 		$dBPrefix = Api::GetSettings()->DBPrefix;
 		$stmt = Api::GetPDO()->prepare("
@@ -56,7 +59,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 		");
 
 		$stmt->execute([
-			'principals/' . Api::getUserPublicIdById($iUserId)
+			'principals/' . Api::getUserPublicIdById($UserId)
 		]);
 
 		$abooks = $stmt->fetchAll(\PDO::FETCH_ASSOC);
@@ -257,7 +260,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 		}
 
 		if (isset($aArgs['Storage']) && $aArgs['Storage'] === StorageType::All) {
-			$aBooks = $this->getAddressbooks($aArgs['UserId']);
+			$aBooks = $this->GetAddressbooks($aArgs['UserId']);
 
 			if (is_array($aBooks) && count($aBooks) > 0) {
 
@@ -418,7 +421,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 		}
 		$mResult = array_merge(
 			$mResult, 
-			$this->getAddressbooks($aArgs['UserId'])
+			$this->GetAddressbooks($aArgs['UserId'])
 		);
 	}
 
@@ -427,7 +430,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 		if ($oContact instanceof Contact) {
 			$aStorageParts = \explode('-', $oContact->Storage);
 			if (is_array($aStorageParts) && count($aStorageParts) === 3 && $aStorageParts[0] === StorageType::Shared) {
-				$abooks = $this->getAddressbooks($oContact->IdUser);
+				$abooks = $this->GetAddressbooks($oContact->IdUser);
 				foreach ($abooks as $abook) {
 					if ($abook['Id'] === $oContact->Storage) {
 						if ($aStorageParts[2] === StorageType::Personal) {
