@@ -1,0 +1,75 @@
+<div class="popup" style="display: none;">
+	<div class="mask" data-bind="click: cancelPopup"></div>
+	<div class="popup_panel popup_panel_shares">
+		<span class="close" data-bind="click: cancelPopup"></span>
+		<span class="popup_heading" data-bind="i18n: {'key': '%MODULENAME%/TITLE_SHARE_ADDRESSBOOK'}"></span>
+
+		<div class="fields">
+			<div class="fieldset">
+				<div class="row row_new_share" data-bind="css: { 'filled': !!selectedTeammateEmail() }">
+					<input class="input" spellcheck="false" type="text"
+						data-bind="valueUpdate: ['blur', 'afterkeydown'], initDom: selectedTeammateDom, value: selectedTeammateEmail,
+						autocompleteSimple: {callback: autocompleteCallback.bind($data), dataAccessor: selectedTeammateData}" />
+					<span class="placeholder" data-bind="i18n: {'key': '%MODULENAME%/LABEL_EMAIL_ADDRESS_OR_NAME'}"></span>
+					<div class="new_share_access_select" data-bind="click: selectAccess, initDom: selectAccessDom">
+						<span class="dropdown dropdown_right">
+							<span class="dropdown_helper">
+								<span class="dropdown_arrow"><span></span></span>
+								<span class="dropdown_content" data-bind="foreach: accessList">
+									<span class="item" data-bind="text: label,
+										  click: function () { $parent.addNewShare(value); }"></span>
+								</span>
+							</span>
+						</span>
+						<span class="control"></span>
+					</div>
+				</div>
+				<div class="row row_shares_list" data-bind="customScrollbar: {x: false}">
+					<div class="scroll-inner" data-bind="initDom: sharesScrollAreaDom">
+						<!-- ko if: shares().length === 0 -->
+						<span class="hint" data-bind="i18n: {'key': '%MODULENAME%/INFO_NO_SHARES'}"></span>
+						<!-- /ko -->
+						<!-- ko if: shares().length > 0 -->
+						<div class="shares_list shares_list_bordered" data-bind="foreach: shares">
+							<div class="item item_share">
+								<span class="title" data-bind="text: publicId, css: { 'title_group': groupId }"></span>
+								<span class="group" data-bind="visible: groupId,
+									  css: {'all_users_group': isAllUsersGroup}"
+								></span>
+								<span class="del" data-bind="
+									  click: function () { $parent.deleteShare(publicId, groupId); },
+									  style: { visibility: $parent.loadingAddressbookShares() ? 'hidden' : '' }"
+								></span>
+								<span class="access_select" data-bind="dropdown: {}">
+									<span class="dropdown_position_fixed">
+										<span class="dropdown">
+											<span class="dropdown_helper">
+												<span class="dropdown_arrow"><span></span></span>
+												<span class="dropdown_content" data-bind="foreach: $parent.accessList">
+													<span class="item" data-bind="text: label,
+														  css: {'selected': value === $parent.access()},
+														  click: function () { $parent.access(value); }"></span>
+												</span>
+											</span>
+										</span>
+									</span>
+									<span class="link control" data-bind="text: accessText"></span>
+								</span>
+							</div>
+						</div>
+						<!-- /ko -->
+					</div>
+				</div>
+			</div>
+
+			<div class="buttons">
+				<span class="button" data-bind="i18n: {'key': 'COREWEBCLIENT/ACTION_SAVE'},
+						click: checkAndSaveShares, css: {'disabled': isSaving()}"></span>
+				<span class="button secondary_button" data-bind="i18n: {'key': 'COREWEBCLIENT/ACTION_CANCEL'},
+						click: cancelPopup, css: {'disabled': isSaving()}"
+				></span>
+			</div>
+		</div>
+	</div>
+	<span class="helper"></span>
+</div>
