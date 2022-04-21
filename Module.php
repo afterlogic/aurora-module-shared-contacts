@@ -182,7 +182,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 		if ($abookId[0] === StorageType::Personal) {
 			$addressbookUri = Constants::ADDRESSBOOK_DEFAULT_NAME;
 		} else {
-			$abook = AddressBook::where('UserId', $iUserId)->where('Id', $abookId[1]);
+			$abook = AddressBook::where('UserId', $iUserId)->where('Id', $abookId[1])->first();
 			if ($abook) {
 				$addressbookUri = $abook->UUID;
 			}
