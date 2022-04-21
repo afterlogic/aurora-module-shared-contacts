@@ -91,6 +91,25 @@ class Module extends \Aurora\System\Module\AbstractModule
 		return $mResult;
 	}
 
+	public function GetSharesForAddressbook($UserId, $Id)
+	{
+		Api::checkUserRoleIsAtLeast(UserRole::NormalUser);
+		Api::CheckAccess($UserId);
+
+		$mResult = [];
+		$aParts = \explode('-', $Id);
+		if (count($aParts) === 2 && $aParts[0] === StorageType::AddressBook) {
+			$sharees = $this->getShareesForAddressbook($UserId, $Id);
+			$mResult = array_map(function ($saree) {
+				return [
+					'PublicId' => basename($saree['principaluri']),
+					'Access' => (int) $saree['access'],
+				];
+			}, $sharees);
+		}
+		return $mResult;
+	}
+
 	protected function getShareesForAddressbook($iUserId, $abookComplexId)
 	{
 		$dBPrefix = Api::GetSettings()->DBPrefix;
