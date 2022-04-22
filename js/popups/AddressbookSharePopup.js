@@ -69,9 +69,8 @@ CAddressbookSharePopup.prototype.PopupTemplate = '%ModuleName%_AddressbookShareP
 
 /**
  * @param {object} addressbook
- * @param {function} expungeAddressbookItems
  */
-CAddressbookSharePopup.prototype.onOpen = function (addressbook = null, expungeAddressbookItems = null)
+CAddressbookSharePopup.prototype.onOpen = function (addressbook = null)
 {
 	console.log('addressbook', addressbook);
 	if (addressbook === null) {
@@ -80,14 +79,13 @@ CAddressbookSharePopup.prototype.onOpen = function (addressbook = null, expungeA
 	}
 
 	this.addressbook = addressbook;
-	this.expungeAddressbookItems = expungeAddressbookItems;
 
 	this.selectedTeammateEmail('');
 	this.selectedTeammateData(null);
 
 	this.fillUpShares();
-	this.requestAddressbookShares(function (sharedWithMeAccess, shares) {
-		this.updateAddressbookShares(sharedWithMeAccess, shares);
+	this.requestAddressbookShares(function (shares) {
+		this.updateAddressbookShares(shares);
 		this.fillUpShares();
 	}.bind(this));
 };
@@ -114,11 +112,8 @@ CAddressbookSharePopup.prototype.requestAddressbookShares = function (callback)
 		function (response, request) {
 			this.loadingAddressbookShares(false);
 			const shares = response && response.Result;
-			console.log('shares', shares);
 			if (shares) {
-				const sharedWithMeAccess = Types.pEnum(response.SharedWithMeAccess,
-						Enums.SharedAddressbookAccess, Enums.SharedAddressbookAccess.Read);
-				callback(sharedWithMeAccess, shares);
+				callback(shares);
 			} else {
 				callback(Enums.SharedAddressbookAccess.Read, []);
 			}
@@ -126,31 +121,12 @@ CAddressbookSharePopup.prototype.requestAddressbookShares = function (callback)
 	);
 };
 
-CAddressbookSharePopup.prototype.updateAddressbookShares = function (newSharedWithMeAccess, newShares)
+CAddressbookSharePopup.prototype.updateAddressbookShares = function (newShares)
 {
 	if (!this.addressbook) {
 		return;
 	}
-
-	//Update shares list in Addressbook object
-//	const oldSharedWithMeAccess = Types.pInt(this.addressbook && this.addressbook.SharedWithMeAccess);
-//	if (oldSharedWithMeAccess !== newSharedWithMeAccess) {
-//		if (this.addressbook.sharedWithMe() && newSharedWithMeAccess === Enums.SharedAddressbookAccess.Read) {
-//			this.addressbook.deleted(true);
-//			if (_.isFunction(this.expungeAddressbookItems)) {
-//				this.expungeAddressbookItems();
-//			}
-//			this.closePopup();
-//			return;
-//		}
-//	}
-//	this.addressbook.updateExtendedProps({
-//		'SharedWithMeAccess': newSharedWithMeAccess,
-//		'Shares': Types.pArray(newShares)
-//	});
-//	if (this.addressbook.sharedWithMe()) {
-//		this.closePopup();
-//	}
+	this.addressbook.Shares = Types.pArray(newShares);
 };
 
 CAddressbookSharePopup.prototype.getCurrentShares = function ()
@@ -179,7 +155,7 @@ CAddressbookSharePopup.prototype.hasChanges = function ()
 {
 	var
 		addressbook = this.addressbook,
-		savedShares = Types.pArray(addressbook && addressbook.oExtendedProps && addressbook.oExtendedProps.Shares),
+		savedShares = Types.pArray(addressbook && addressbook.Shares),
 		currentShares = this.getCurrentShares()
 	;
 	savedShares = _.sortBy(savedShares, 'PublicId');
@@ -366,23 +342,19 @@ CAddressbookSharePopup.prototype.checkAndSaveShares = function ()
 	}
 
 	this.isSaving(true);
-	this.requestAddressbookShares(function (sharedWithMeAccessFromServer, sharesFromServer) {
+	this.requestAddressbookShares(function (sharesFromServer) {
 		this.isSaving(false);
 		const addressbook = this.addressbook;
-		let
-			savedShares = Types.pArray(addressbook && addressbook.Shares),
-			sharedWithMeAccess = Types.pInt(addressbook && addressbook.SharedWithMeAccess)
-		;
+		let savedShares = Types.pArray(addressbook && addressbook.Shares);
 		sharesFromServer = _.sortBy(sharesFromServer, 'PublicId');
 		savedShares = _.sortBy(savedShares, 'PublicId');
-		console.log({isEqual: _.isEqual(savedShares, sharesFromServer), savedShares, sharesFromServer, sharedWithMeAccessFromServer, sharedWithMeAccess});
-		if (_.isEqual(savedShares, sharesFromServer)/* && sharedWithMeAccessFromServer === sharedWithMeAccess*/) {
+		if (_.isEqual(savedShares, sharesFromServer)) {
 			this.saveShares();
 		} else {
 			const
 				alertText = TextUtils.i18n('%MODULENAME%/WARNING_SHARES_CHANGED_BY_OTHER_USER'),
 				alertCallback = function () {
-					this.updateAddressbookShares(sharedWithMeAccessFromServer, sharesFromServer);
+					this.updateAddressbookShares(sharesFromServer);
 					this.fillUpShares();
 				}.bind(this)
 			;
@@ -442,8 +414,8 @@ CAddressbookSharePopup.prototype.onUpdateShareResponse = function (response, req
 {
 	this.isSaving(false);
 	if (response.Result) {
-		this.requestAddressbookShares(function (sharedWithMeAccess, shares) {
-			this.updateAddressbookShares(sharedWithMeAccess, shares);
+		this.requestAddressbookShares(function (shares) {
+			this.updateAddressbookShares(shares);
 			Screens.showReport(TextUtils.i18n('%MODULENAME%/INFO_SHARING_STATUS_UPDATED'));
 			this.addressbook = null;
 			this.closePopup();

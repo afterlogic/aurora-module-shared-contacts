@@ -1,0 +1,10 @@
+<span class="share_control" data-bind="
+	  visible: !$parent.Shared,
+	  click: function () { openAddressbookSharePopup($parent); },
+	  customTooltip: '%MODULENAME%/ACTION_SHARE_ADDRESSBOOK'"
+></span>
+<span class="leave_share_control" data-bind="
+	  visible: $parent.Shared,
+	  click: function () { leaveAddressbookShare($parent); },
+	  customTooltip: '%MODULENAME%/ACTION_LEAVE_SHARE_ADDRESSBOOK'"
+></span>
