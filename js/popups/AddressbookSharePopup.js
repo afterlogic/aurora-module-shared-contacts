@@ -222,7 +222,7 @@ CAddressbookSharePopup.prototype.autocompleteCallback = function (request, respo
 		suggestParameters = {
 			storage: 'team',
 			addContactGroups: false,
-			addUserGroups: false,
+			addUserGroups: true,
 			exceptEmail: owner
 		},
 		autocompleteCallback = ModulesManager.run(
