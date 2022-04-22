@@ -13,11 +13,13 @@ use \Aurora\Modules\Contacts\Enums\StorageType;
 use Aurora\Modules\Contacts\Models\AddressBook;
 use Aurora\Modules\Contacts\Models\Contact;
 use Aurora\Modules\Contacts\Module as ContactsModule;
+use Aurora\Modules\Core\Models\User;
 use Aurora\System\Enums\UserRole;
 use Aurora\System\Exceptions\InvalidArgumentException;
 use Aurora\System\Notifications;
 use Illuminate\Database\Capsule\Manager as Capsule;
 use Sabre\DAV\UUIDUtil;
+use Aurora\Modules\Core\Module as CoreModule;
 
 /**
  * @license https://afterlogic.com/products/common-licensing Afterlogic Software License
@@ -28,6 +30,8 @@ use Sabre\DAV\UUIDUtil;
 class Module extends \Aurora\System\Module\AbstractModule
 {
 	protected static $iStorageOrder = 10;
+
+	protected $oBeforeDeleteUser = null;
 
 	public function init()
 	{
@@ -40,6 +44,13 @@ class Module extends \Aurora\System\Module\AbstractModule
 		$this->subscribeEvent('Contacts::GetContactSuggestions', array($this, 'onGetContactSuggestions'));
 		$this->subscribeEvent('Contacts::GetAddressBooks::after', array($this, 'onAfterGetAddressBooks'), 1000);
 		$this->subscribeEvent('Contacts::PopulateContactModel', array($this, 'onPopulateContactModel'));
+
+		$this->subscribeEvent('Core::AddUsersToGroup::after', [$this, 'onAfterAddUsersToGroup']);
+		$this->subscribeEvent('Core::RemoveUsersFromGroup::after', [$this, 'onAfterRemoveUsersFromGroup']);
+		$this->subscribeEvent('Core::UpdateUser::after', [$this, 'onAfterUpdateUser']);
+		$this->subscribeEvent('Core::DeleteUser::before', [$this, 'onBeforeDeleteUser']);
+		$this->subscribeEvent('Core::DeleteUser::after', [$this, 'onAfterDeleteUser']);
+		$this->subscribeEvent('Core::DeleteGroup::after', [$this, 'onAfterDeleteGroup']);
 	}
 
 	public function GetAddressbooks($UserId) 
@@ -59,7 +70,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 		");
 
 		$stmt->execute([
-			'principals/' . Api::getUserPublicIdById($UserId)
+			Constants::PRINCIPALS_PREFIX . Api::getUserPublicIdById($UserId)
 		]);
 
 		$abooks = $stmt->fetchAll(\PDO::FETCH_ASSOC);
@@ -96,21 +107,41 @@ class Module extends \Aurora\System\Module\AbstractModule
 		Api::checkUserRoleIsAtLeast(UserRole::NormalUser);
 		Api::CheckAccess($UserId);
 
-		$mResult = [];
-		$aParts = \explode('-', $Id);
-		if (count($aParts) === 2 && $aParts[0] === StorageType::AddressBook) {
-			$sharees = $this->getShareesForAddressbook($UserId, $Id);
-			$mResult = array_map(function ($saree) {
-				return [
-					'PublicId' => basename($saree['principaluri']),
-					'Access' => (int) $saree['access'],
-				];
-			}, $sharees);
+		$aResult = [];
+
+		$shares = $this->_getSharesForAddressbook($UserId, $Id);
+		if (count($shares) > 0) {
+			$oUser = Api::getUserById($UserId);
+			$groups = [];
+			foreach ($shares as $share) {
+				if ($share['group_id'] != 0) {
+
+					if (!in_array($share['group_id'], $groups)) {
+						$oGroup = CoreModule::Decorator()->GetGroup($oUser->IdTenant, (int) $share['group_id']);
+						if ($oGroup) {
+							$groups[] = $share['group_id'];
+							$aResult[] = [
+								'PublicId' => $oGroup->getName(),
+								'Access' => (int) $share['access'],
+								'IsGroup' => true,
+								'IsAll' => !!$oGroup->IsAll,
+								'GroupId' => (int) $share['group_id']
+							];
+						}
+					}
+				} else {
+					$aResult[] = [
+						'PublicId' => basename($share['principaluri']),
+						'Access' => (int) $share['access']
+					];
+				}
+			}
 		}
-		return $mResult;
+
+		return $aResult;
 	}
 
-	protected function getShareesForAddressbook($iUserId, $abookComplexId)
+	protected function _getSharesForAddressbook($iUserId, $abookComplexId)
 	{
 		$dBPrefix = Api::GetSettings()->DBPrefix;
 		$stmt = Api::GetPDO()->prepare("
@@ -132,7 +163,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 		return $stmt->fetchAll(\PDO::FETCH_ASSOC);		
 	}
 
-	protected function getShareeForAddressbook($iUserId, $abookComplexId, $principalUri)
+	protected function getShareForAddressbook($iUserId, $abookComplexId, $principalUri, $groupId = 0)
 	{
 		$dBPrefix = Api::GetSettings()->DBPrefix;
 		$stmt = Api::GetPDO()->prepare("
@@ -141,7 +172,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 		left join " . $dBPrefix . "adav_addressbooks ab on sab.addressbook_id = ab.id
 			left join " . $dBPrefix . "core_users cu on ab.principaluri = CONCAT('principals/', cu.PublicId)
 				left join " . $dBPrefix . "contacts_addressbooks ca on ca.UUID = ab.uri
-					where cu.Id = ? and sab.principaluri = ?) as sub_select where storage = ?
+					where cu.Id = ? and sab.principaluri = ? and sab.group_id = ?) as sub_select where storage = ?
 		");
 
 		$stmt->execute([
@@ -149,25 +180,27 @@ class Module extends \Aurora\System\Module\AbstractModule
 			StorageType::AddressBook . '-',
 			$iUserId,
 			$principalUri,
+			$groupId,
 			$abookComplexId
 		]);
 
 		return $stmt->fetch(\PDO::FETCH_ASSOC);		
 	}
 
-	protected function deleteShareeByPublicIds($userId, $abookComplexId, $publicIds)
+	protected function deleteShareByPublicIds($userId, $abookComplexId, $publicIds)
 	{
 		$dBPrefix = Api::GetSettings()->DBPrefix;
 
-		$shareesIds = [];
+		$sharesIds = [];
 		foreach ($publicIds as $publicId) {
-			$sharee = $this->getShareeForAddressbook($userId, $abookComplexId, 'principals/' . $publicId);
-			if ($sharee) {
-				$shareesIds[] = $sharee['id'];
+			$publicId = \json_decode($publicId);
+			$share = $this->getShareForAddressbook($userId, $abookComplexId, Constants::PRINCIPALS_PREFIX . $publicId[0], $publicId[1]);
+			if ($share) {
+				$sharesIds[] = $share['id'];
 			}
 		}
-		if (count($shareesIds) > 0) {
-			$stmt = Api::GetPDO()->prepare("delete from " . $dBPrefix . "adav_shared_addressbooks where id in (" . \implode(',', $shareesIds) . ")");
+		if (count($sharesIds) > 0) {
+			$stmt = Api::GetPDO()->prepare("delete from " . $dBPrefix . "adav_shared_addressbooks where id in (" . \implode(',', $sharesIds) . ")");
 			$stmt->execute();
 		}
 	}
@@ -190,34 +223,40 @@ class Module extends \Aurora\System\Module\AbstractModule
 		$userPublicId = Api::getUserPublicIdById($iUserId);
 		if (!empty($addressbookUri) && $userPublicId) {
 			$stmt = Api::GetPDO()->prepare("select * from " . $dBPrefix . "adav_addressbooks where principaluri = ? and uri = ?");
-			$stmt->execute(['principals/' . $userPublicId, $addressbookUri]);
+			$stmt->execute([Constants::PRINCIPALS_PREFIX . $userPublicId, $addressbookUri]);
 			$mResult = $stmt->fetch();
 		}
 
 		return $mResult;
 	}
 
-	protected function createSharee($iUserId, $abookComplexId, $shareePublicId, $access)
+	protected function createShare($iUserId, $abookComplexId, $share)
 	{
 		$dBPrefix = Api::GetSettings()->DBPrefix;
 		
 		$book = $this->getAddressbookByComplexId($iUserId, $abookComplexId);
 		if ($book) {
+			$shareePublicId = $share['PublicId'];
+			$access = $share['Access'];
+			$groupId = $share['GroupId'];
 			$stmt = Api::GetPDO()->prepare("insert into " . $dBPrefix . "adav_shared_addressbooks
-			(principaluri, access, addressbook_id, addressbookuri)
-			values (?, ?, ?, ?)");
-			$stmt->execute(['principals/' . $shareePublicId, $access, $book['id'], UUIDUtil::getUUID()]);
+			(principaluri, access, addressbook_id, addressbookuri, group_id)
+			values (?, ?, ?, ?, ?)");
+			$stmt->execute([Constants::PRINCIPALS_PREFIX . $shareePublicId, $access, $book['id'], UUIDUtil::getUUID(), $groupId]);
 		}
 	}
 
-	protected function updateSharee($iUserId, $abookComplexId, $shareePublicId, $access)
+	protected function updateShare($iUserId, $abookComplexId, $share)
 	{
 		$dBPrefix = Api::GetSettings()->DBPrefix;
 		$book = $this->getAddressbookByComplexId($iUserId, $abookComplexId);
 		if ($book) {
+			$shareePublicId = $share['PublicId'];
+			$access = $share['Access'];
+			$groupId = $share['GroupId'];
 			$stmt = Api::GetPDO()->prepare("update " . $dBPrefix . "adav_shared_addressbooks 
-			set access = ? where principaluri = ? and addressbook_id = ?");
-			$stmt->execute([$access, 'principals/' . $shareePublicId, $book['id']]);
+			set access = ? where principaluri = ? and addressbook_id = ? and group_id = ?");
+			$stmt->execute([$access, Constants::PRINCIPALS_PREFIX . $shareePublicId, $book['id'], $groupId]);
 		}
 	}
 
@@ -383,7 +422,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 				$stmt = Api::GetPDO()->prepare($sql);
 		
 				$stmt->execute([
-					'principals/' . $oUser->PublicId, 
+					Constants::PRINCIPALS_PREFIX . $oUser->PublicId, 
 					$oContact->IdUser
 				]);
 		
@@ -427,16 +466,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 			$mResult = [];
 		}
 		foreach ($mResult as $key => $abook) {
-			$aParts = \explode('-', $abook['Id']);
-			if (count($aParts) === 2 && $aParts[0] === StorageType::AddressBook) {
-				$sharees = $this->getShareesForAddressbook($aArgs['UserId'], $abook['Id']);
-				$mResult[$key]['Shares'] = array_map(function ($saree) {
-					return [
-						'PublicId' => basename($saree['principaluri']),
-						'Access' => (int) $saree['access'],
-					];
-				}, $sharees);
-			}
+			$mResult[$key]['Shares'] = self::Decorator()->GetSharesForAddressbook($aArgs['UserId'], $abook['Id']);
 		}
 		$mResult = array_merge(
 			$mResult, 
@@ -479,30 +509,58 @@ class Module extends \Aurora\System\Module\AbstractModule
 		}
 
 		try {
-			$currentABookSharees = $this->getShareesForAddressbook($UserId, $Id);
+			$oUser = Api::getUserById($UserId);
+			$currentABookShares = $this->_getSharesForAddressbook($UserId, $Id);
 
-			$currentSharees = array_map(function($sharee) {
-				return basename($sharee['principaluri']);
-			}, $currentABookSharees);
-
-			$newSharees = array_map(function($sharee) {
-				return $sharee['PublicId'];
-			}, $Shares);
-
-			$shareesToDelete = array_diff($currentSharees, $newSharees);
-			$shareesToCreate = array_diff($newSharees, $currentSharees);
-			$shareesToUpdate = array_intersect($currentSharees, $newSharees);
-
-			if (count($shareesToDelete) > 0) {
-				$this->deleteShareeByPublicIds($UserId, $Id, $shareesToDelete);
+			$newABookShares = [];
+			foreach ($Shares as $share) {
+				if (isset($share['GroupId'])) {
+					$aUsers = CoreModule::Decorator()->GetGroupUsers($oUser->IdTenant, (int) $share['GroupId']);
+					foreach ($aUsers as $aUser) {
+						$newABookShares[] = [
+							'PublicId' => $aUser['PublicId'],
+							'Access' => (int) $share['Access'],
+							'GroupId' => (int) $share['GroupId'],
+						];
+					}
+				} else {
+					$share['GroupId'] = 0;
+					$newABookShares[] = $share;
+				}
 			}
 
-			foreach ($Shares as $share) {
-				if (in_array($share['PublicId'], $shareesToCreate)) {
-					$this->createSharee($UserId, $Id, $share['PublicId'], $share['Access']);
+			$currentShares = array_map(function($share) {
+				return \json_encode([
+					basename($share['principaluri']), 
+					$share['group_id']
+				]);
+			}, $currentABookShares);
+
+			$newShares = array_map(function($share) {
+				return \json_encode([
+					$share['PublicId'], 
+					$share['GroupId']
+				]);
+			}, $newABookShares);
+
+			$sharesToDelete = array_diff($currentShares, $newShares);
+			$sharesToCreate = array_diff($newShares, $currentShares);
+			$sharesToUpdate = array_intersect($currentShares, $newShares);
+
+			if (count($sharesToDelete) > 0) {
+				$this->deleteShareByPublicIds($UserId, $Id, $sharesToDelete);
+			}
+
+			foreach ($newABookShares as $share) {
+				$sharePublicIdAndGroupId = \json_encode([
+					$share['PublicId'], 
+					$share['GroupId']
+				]);
+				if (in_array($sharePublicIdAndGroupId, $sharesToCreate)) {
+					$this->createShare($UserId, $Id, $share);
 				}
-				if (in_array($share['PublicId'], $shareesToUpdate)) {
-					$this->updateSharee($UserId, $Id, $share['PublicId'], $share['Access']);
+				if (in_array($sharePublicIdAndGroupId, $sharesToUpdate)) {
+					$this->updateShare($UserId, $Id, $share);
 				}
 			}
 
@@ -514,4 +572,140 @@ class Module extends \Aurora\System\Module\AbstractModule
 
 		return $mResult;
 	}
+
+	public function LeaveShare($UserId, $Id)
+	{
+		Api::checkUserRoleIsAtLeast(UserRole::NormalUser);
+		Api::CheckAccess($UserId);
+
+		$abook = $this->getAddressbookByComplexId($UserId, $Id);
+		if ($abook) {
+			$dBPrefix = Api::GetSettings()->DBPrefix;
+			$stmt = Api::GetPDO()->prepare("delete from " . $dBPrefix . "adav_shared_addressbooks where id = ?");
+			$stmt->execute([$abook]);
+		}
+	}
+
+	public function onAfterDeleteGroup($aArgs, &$mResult)
+	{
+		if ($mResult) {
+			$dBPrefix = Api::GetSettings()->DBPrefix;
+			$stmt = Api::GetPDO()->prepare("delete from " . $dBPrefix . "adav_shared_addressbooks where group_id = ?");
+			$stmt->execute([$aArgs['GroupId']]);
+		}
+	}
+
+	/**
+	 * @ignore
+	 * @param array $aArgs Arguments of event.
+	 * @param mixed $mResult Is passed by reference.
+	 */
+	public function onBeforeDeleteUser($aArgs, &$mResult)
+	{
+		if (isset($aArgs['UserId'])) {
+			$this->oBeforeDeleteUser = Api::getUserById($aArgs['UserId']);
+		}
+	}
+
+		/**
+	 * @ignore
+	 * @param array $aArgs Arguments of event.
+	 * @param mixed $mResult Is passed by reference.
+	 */
+	public function onAfterDeleteUser($aArgs, $mResult)
+	{
+		if ($mResult && $this->oBeforeDeleteUser instanceof User) {
+			$dBPrefix = Api::GetSettings()->DBPrefix;
+			$stmt = Api::GetPDO()->prepare("delete from " . $dBPrefix . "adav_shared_addressbooks where principaluri = ?");
+			$stmt->execute([Constants::PRINCIPALS_PREFIX . $this->oBeforeDeleteUser->PublicId]);
+		}
+	}
+
+	public function onAfterAddUsersToGroup($aArgs, &$mResult)
+	{
+		if ($mResult) {
+			foreach ($aArgs['UserIds'] as $iUserId) {
+				$userPublicId = Api::getUserPublicIdById($iUserId);
+				$sUserPrincipalUri = Constants::PRINCIPALS_PREFIX . $userPublicId;
+
+				$dBPrefix = Api::GetSettings()->DBPrefix;
+				$stmt = Api::GetPDO()->prepare("select distinct addressbook_id, access from " . $dBPrefix . "adav_shared_addressbooks where group_id = ?");
+				$stmt->execute([$aArgs['GroupId']]);
+				$shares = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+				foreach ($shares as $share) {
+					if (is_array($share)) {
+						$stmt = Api::GetPDO()->prepare("insert into " . $dBPrefix . "adav_shared_addressbooks
+						(principaluri, access, addressbook_id, addressbookuri, group_id)
+						values (?, ?, ?, ?, ?)");
+						$stmt->execute([$sUserPrincipalUri, $share['access'], $share['addressbook_id'], UUIDUtil::getUUID(), $aArgs['GroupId']]);			
+					}
+				}
+			}
+		}
+	}
+
+	public function onAfterUpdateUser($aArgs, &$mResult)
+	{
+		if ($mResult) {
+
+			$groupIds = $aArgs['GroupIds'];
+			$userId = $aArgs['UserId'];
+
+			$userPublicId = Api::getUserPublicIdById($userId);
+			$sUserPrincipalUri = Constants::PRINCIPALS_PREFIX . $userPublicId;
+
+			$dBPrefix = Api::GetSettings()->DBPrefix;
+			$stmt = Api::GetPDO()->prepare("select * from " . $dBPrefix . "adav_shared_addressbooks where group_id <> 0 and principaluri = ?");
+			$stmt->execute([$sUserPrincipalUri]);
+			$shares = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+			
+			$currentGroupsIds = [];
+			if (is_array($shares)) {
+				$currentGroupsIds = array_map(function ($share) {
+					return $share['group_id'];
+				}, $shares);
+			}
+
+			$groupsIdsToDelete = array_diff($currentGroupsIds, $groupIds);
+			$groupsIdsToCreate = array_diff($groupIds, $currentGroupsIds);
+
+			if (count($groupsIdsToDelete) > 0) {
+				$stmt = Api::GetPDO()->prepare("delete from " . $dBPrefix . "adav_shared_addressbooks 
+				where group_id in (" . \implode(',', $groupsIdsToDelete) . ") and principaluri = ?");
+				$stmt->execute([$sUserPrincipalUri]);
+			}
+
+			if (count($groupsIdsToCreate) > 0) {
+				$stmt = Api::GetPDO()->prepare("select distinct addressbook_id, access, group_id from " . $dBPrefix . "adav_shared_addressbooks where group_id in (" . \implode(',', $groupsIdsToCreate) . ")");
+				$stmt->execute();
+				$shares = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+				foreach ($shares as $share) {
+					if (is_array($share)) {
+						$stmt = Api::GetPDO()->prepare("insert into " . $dBPrefix . "adav_shared_addressbooks
+						(principaluri, access, addressbook_id, addressbookuri, group_id)
+						values (?, ?, ?, ?, ?)");
+						$stmt->execute([$sUserPrincipalUri, $share['access'], $share['addressbook_id'], UUIDUtil::getUUID(), $share['group_id']]);			
+					}
+				}
+			}
+		}
+	}
+
+	public function onAfterRemoveUsersFromGroup($aArgs, &$mResult)
+	{
+		if ($mResult) {
+			$principals = [];
+			foreach ($aArgs['UserIds'] as $iUserId) {
+				$oUser = Api::getUserById($iUserId);
+				$principals[] = Constants::PRINCIPALS_PREFIX . $oUser->PublicId;
+ 			}
+
+			if (count($principals) > 0) {
+				$dBPrefix = Api::GetSettings()->DBPrefix;
+				$stmt = Api::GetPDO()->prepare("delete from " . $dBPrefix . "adav_shared_addressbooks where principaluri in (" . \implode(',', $principals) . ") and group_id = ?");
+				$stmt->execute([$aArgs['GroupId']]);
+			}
+		}		
+	}
+
 }
