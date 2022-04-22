@@ -72,7 +72,6 @@ CAddressbookSharePopup.prototype.PopupTemplate = '%ModuleName%_AddressbookShareP
  */
 CAddressbookSharePopup.prototype.onOpen = function (addressbook = null)
 {
-	console.log('addressbook', addressbook);
 	if (addressbook === null) {
 		this.closePopup();
 		return;
@@ -194,7 +193,7 @@ CAddressbookSharePopup.prototype.autocompleteCallback = function (request, respo
 	}
 
 	const
-		owner = Types.pString(addressbook.OwnerName),
+		owner = App.getUserPublicId(),
 		suggestParameters = {
 			storage: 'team',
 			addContactGroups: false,
@@ -421,7 +420,7 @@ CAddressbookSharePopup.prototype.onUpdateShareResponse = function (response, req
 			this.closePopup();
 		}.bind(this));
 	} else {
-		Api.showErrorByCode(response, TextUtils.i18n('%MODULENAME%/ERROR_UNKNOWN_ERROR'));
+		Api.showErrorByCode(response);
 	}
 };
 

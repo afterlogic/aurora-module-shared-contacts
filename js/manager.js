@@ -6,11 +6,7 @@ module.exports = function (appData) {
 	if (App.isUserNormalOrTenant()) {
 		return {
 			start: function () {
-				console.log('appData', appData);
-				console.log('appData.Contacts', appData.Contacts);
-				console.log('appData.ContactsWebclient', appData.ContactsWebclient);
 				const allowAddressBooksManagement = !!(appData.Contacts && appData.Contacts.AllowAddressBooksManagement);
-				console.log('allowAddressBooksManagement', allowAddressBooksManagement);
 				if (allowAddressBooksManagement) {
 					$('html').addClass('shared-addressbooks');
 				}
