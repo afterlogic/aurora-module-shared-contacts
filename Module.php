@@ -582,7 +582,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 		if ($abook) {
 			$dBPrefix = Api::GetSettings()->DBPrefix;
 			$stmt = Api::GetPDO()->prepare("delete from " . $dBPrefix . "adav_shared_addressbooks where id = ?");
-			$stmt->execute([$abook]);
+			$stmt->execute([$abook['id']]);
 		}
 	}
 
