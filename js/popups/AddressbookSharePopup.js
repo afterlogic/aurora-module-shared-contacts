@@ -31,7 +31,8 @@ function CAddressbookSharePopup()
 	this.accessList = ko.computed(function () {
 		return [
 			{ value: Enums.SharedAddressbookAccess.Read, label: TextUtils.i18n('%MODULENAME%/LABEL_READ_ACCESS') },
-			{ value: Enums.SharedAddressbookAccess.Write, label: TextUtils.i18n('%MODULENAME%/LABEL_WRITE_ACCESS') }
+			{ value: Enums.SharedAddressbookAccess.Write, label: TextUtils.i18n('%MODULENAME%/LABEL_WRITE_ACCESS') },
+			{ value: Enums.SharedAddressbookAccess.NoAccess, label: TextUtils.i18n('%MODULENAME%/LABEL_NOSHARE_ACCESS') }
 		];
 	}, this);
 
@@ -114,7 +115,7 @@ CAddressbookSharePopup.prototype.requestAddressbookShares = function (callback)
 			if (shares) {
 				callback(shares);
 			} else {
-				callback(Enums.SharedAddressbookAccess.Read, []);
+				callback([]);
 			}
 		}.bind(this)
 	);
