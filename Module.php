@@ -9,6 +9,7 @@ namespace Aurora\Modules\SharedContacts;
 use Afterlogic\DAV\Constants;
 use Aurora\Api;
 use Aurora\Modules\Contacts\Enums\Access;
+use Aurora\Modules\Contacts\Enums\SortField;
 use \Aurora\Modules\Contacts\Enums\StorageType;
 use Aurora\Modules\Contacts\Models\AddressBook;
 use Aurora\Modules\Contacts\Models\Contact;
@@ -318,10 +319,10 @@ class Module extends \Aurora\System\Module\AbstractModule
 			$mResult = $mResult->orWhere(function($query) use ($oUser) {
 				$query = $query->where('IdTenant', $oUser->IdTenant)
 					->where('Storage', StorageType::Shared);
-				if (isset($aArgs['SortField']) && $aArgs['SortField'] === \Aurora\Modules\Contacts\Enums\SortField::Frequency)
+				if (isset($aArgs['SortField']) && $aArgs['SortField'] === SortField::Frequency)
 				{
-					$query->where('Frequency', '!=', -1)
-						->whereNotNull('DateModified');
+					// $query->where('Frequency', '!=', -1)
+					$query->whereNotNull('DateModified');
 				}
 		    });
 		} else {
@@ -346,10 +347,10 @@ class Module extends \Aurora\System\Module\AbstractModule
 						if ($iAddressBookId > 0) {
 							$query = $query->where('AddressBookId', $iAddressBookId);
 						}
-						if (isset($aArgs['SortField']) && $aArgs['SortField'] === \Aurora\Modules\Contacts\Enums\SortField::Frequency)
+						if (isset($aArgs['SortField']) && $aArgs['SortField'] === SortField::Frequency)
 						{
-							$query->where('Frequency', '!=', -1)
-								->whereNotNull('DateModified');
+							// $query->where('Frequency', '!=', -1)
+							$query->whereNotNull('DateModified');
 						}
 					});
 				}
@@ -382,9 +383,10 @@ class Module extends \Aurora\System\Module\AbstractModule
 							if ($iAddressBookId > 0) {
 								$query = $query->where('AddressBookId', $iAddressBookId);
 							}
-							if (isset($aArgs['SortField']) && $aArgs['SortField'] === \Aurora\Modules\Contacts\Enums\SortField::Frequency)
+							if (isset($aArgs['SortField']) && $aArgs['SortField'] === SortField::Frequency)
 							{
-								$query->where('Frequency', '!=', -1)->whereNotNull('DateModified');
+								// $query->where('Frequency', '!=', -1)
+								$query->whereNotNull('DateModified');
 							}
 							if ($iAddressBookId > 0) {
 								$aWhen[] = "WHEN IdUser = ". $storageArray[1] . " AND Storage = '" . $storage . "' AND AddressBookId = " . $iAddressBookId . " THEN '" . $aBook['Id'] . "'";
