@@ -6,10 +6,7 @@ module.exports = function (appData) {
 	if (App.isUserNormalOrTenant()) {
 		return {
 			start: function () {
-				const allowAddressBooksManagement = !!(appData.Contacts && appData.Contacts.AllowAddressBooksManagement);
-				if (allowAddressBooksManagement) {
-					$('html').addClass('shared-addressbooks');
-				}
+				$('html').addClass('shared-addressbooks');
 			},
 			getShareAddressbookControlView: function () {
 				return require('modules/%ModuleName%/js/views/ShareAddressbookControlView.js');
