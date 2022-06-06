@@ -441,6 +441,12 @@ class Module extends \Aurora\System\Module\AbstractModule
 		$Access = isset($aArgs['Access']) ? (int) $aArgs['Access'] : null;
 
 		if ($oContact instanceof \Aurora\Modules\Contacts\Models\Contact) {
+
+
+			if ($oContact->IdUser === $oUser->Id) {
+				$mResult = true;
+				return true; // break other subscriptions
+			}
 			if ($oContact->Storage === StorageType::Shared) {
 				if ($oUser->Role !== \Aurora\System\Enums\UserRole::SuperAdmin && $oUser->IdTenant !== $oContact->IdTenant) {
 					$mResult = false;
