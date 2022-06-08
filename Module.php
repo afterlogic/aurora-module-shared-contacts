@@ -441,6 +441,12 @@ class Module extends \Aurora\System\Module\AbstractModule
 		$Access = isset($aArgs['Access']) ? (int) $aArgs['Access'] : null;
 
 		if ($oContact instanceof \Aurora\Modules\Contacts\Models\Contact) {
+
+
+			if ($oContact->IdUser === $oUser->Id) {
+				$mResult = true;
+				return true; // break other subscriptions
+			}
 			if ($oContact->Storage === StorageType::Shared) {
 				if ($oUser->Role !== \Aurora\System\Enums\UserRole::SuperAdmin && $oUser->IdTenant !== $oContact->IdTenant) {
 					$mResult = false;
@@ -711,17 +717,19 @@ class Module extends \Aurora\System\Module\AbstractModule
 	public function onAfterCreateUser($aArgs, &$mResult) 
 	{
 		if ($mResult) {
-			$oGroup = CoreModule::getInstance()->GetAllGroup($aArgs['TenantId']);
-			if ($oGroup) {
-				$newArgs = [
-					'GroupId' => $oGroup->Id,
-					'UserIds' => [$mResult]
-				];
-				$newResult = true;
-				$this->onAfterAddUsersToGroup($newArgs, $newResult);
+			$oUser = User::find($mResult);
+			if ($oUser) {
+				$oGroup = CoreModule::getInstance()->GetAllGroup($oUser->IdTenant);
+				if ($oGroup) {
+					$newArgs = [
+						'GroupId' => $oGroup->Id,
+						'UserIds' => [$mResult]
+					];
+					$newResult = true;
+					$this->onAfterAddUsersToGroup($newArgs, $newResult);
+				}
 			}
 		}
-
 	}
 
 	public function onAfterUpdateUser($aArgs, &$mResult)
