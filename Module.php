@@ -307,18 +307,18 @@ class Module extends \Aurora\System\Module\AbstractModule
 
 	public function prepareFiltersFromStorage(&$aArgs, &$mResult)
 	{
-		if (isset($aArgs['Storage']) && ($aArgs['Storage'] === StorageType::Shared || $aArgs['Storage'] === StorageType::All))
-		{
+		if (!isset($mResult)) {
+			$mResult = \Aurora\Modules\Contacts\Models\Contact::query();
+		}
+		if (isset($aArgs['Storage']) && ($aArgs['Storage'] === StorageType::Shared || $aArgs['Storage'] === StorageType::All)) {
 			$aArgs['IsValid'] = true;
 
-			if (!isset($mResult))
-			{
-				$mResult = \Aurora\Modules\Contacts\Models\Contact::query();
-			}
 			$oUser = \Aurora\System\Api::getAuthenticatedUser();
 			$mResult = $mResult->orWhere(function($query) use ($oUser) {
 				$query = $query->where('IdTenant', $oUser->IdTenant)
-					->where('Storage', StorageType::Shared);
+					->where('Storage', StorageType::Shared)
+					->where('Auto', false)->orWhereNull('Auto');
+
 				if (isset($aArgs['SortField']) && $aArgs['SortField'] === SortField::Frequency)
 				{
 					// $query->where('Frequency', '!=', -1)
@@ -343,7 +343,9 @@ class Module extends \Aurora\System\Module\AbstractModule
 
 					$mResult = $mResult->orWhere(function($query) use ($storageArray, $sStorage, $iAddressBookId) {
 						$query = $query->where('IdUser', $storageArray[1])
-							->where('Storage', $sStorage);
+							->where('Storage', $sStorage)
+							->where('Auto', false)->orWhereNull('Auto');
+
 						if ($iAddressBookId > 0) {
 							$query = $query->where('AddressBookId', $iAddressBookId);
 						}
@@ -378,7 +380,9 @@ class Module extends \Aurora\System\Module\AbstractModule
 
 						$mResult = $mResult->orWhere(function($query) use ($storageArray, $storage, $iAddressBookId, $aArgs, $aBook, &$aWhen) {
 							$query = $query->where('IdUser', $storageArray[1])
-								->where('Storage', $storage);
+								->where('Storage', $storage)
+								->where('Auto', false)->orWhereNull('Auto');
+
 
 							if ($iAddressBookId > 0) {
 								$query = $query->where('AddressBookId', $iAddressBookId);
@@ -396,7 +400,6 @@ class Module extends \Aurora\System\Module\AbstractModule
 						});
 					}
 				}
-
 				$rawSql = Capsule::connection()->raw("*, CASE " . \implode("\r\n", $aWhen) . " ELSE Storage END as Storage");
 				$mResult->addSelect($rawSql);
 			}
