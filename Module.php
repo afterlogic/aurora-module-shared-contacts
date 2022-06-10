@@ -383,7 +383,6 @@ class Module extends \Aurora\System\Module\AbstractModule
 								->where('Storage', $storage)
 								->where('Auto', false)->orWhereNull('Auto');
 
-
 							if ($iAddressBookId > 0) {
 								$query = $query->where('AddressBookId', $iAddressBookId);
 							}
