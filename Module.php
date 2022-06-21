@@ -317,7 +317,10 @@ class Module extends \Aurora\System\Module\AbstractModule
 			$mResult = $mResult->orWhere(function($query) use ($oUser) {
 				$query = $query->where('IdTenant', $oUser->IdTenant)
 					->where('Storage', StorageType::Shared)
-					->where('Auto', false)->orWhereNull('Auto');
+					->where(function($query) {
+						$query->where('Auto', false)->orWhereNull('Auto');
+					}
+				);
 
 				if (isset($aArgs['SortField']) && $aArgs['SortField'] === SortField::Frequency)
 				{
@@ -344,7 +347,10 @@ class Module extends \Aurora\System\Module\AbstractModule
 					$mResult = $mResult->orWhere(function($query) use ($storageArray, $sStorage, $iAddressBookId) {
 						$query = $query->where('IdUser', $storageArray[1])
 							->where('Storage', $sStorage)
-							->where('Auto', false)->orWhereNull('Auto');
+							->where(function($query) {
+								$query->where('Auto', false)->orWhereNull('Auto');
+							}
+						);
 
 						if ($iAddressBookId > 0) {
 							$query = $query->where('AddressBookId', $iAddressBookId);
@@ -381,7 +387,10 @@ class Module extends \Aurora\System\Module\AbstractModule
 						$mResult = $mResult->orWhere(function($query) use ($storageArray, $storage, $iAddressBookId, $aArgs, $aBook, &$aWhen) {
 							$query = $query->where('IdUser', $storageArray[1])
 								->where('Storage', $storage)
-								->where('Auto', false)->orWhereNull('Auto');
+								->where(function($query) {
+									$query->where('Auto', false)->orWhereNull('Auto');
+								}
+							);
 
 							if ($iAddressBookId > 0) {
 								$query = $query->where('AddressBookId', $iAddressBookId);
