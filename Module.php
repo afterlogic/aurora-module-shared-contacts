@@ -112,7 +112,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 
 				$mResult[] = [
 					'Id' => $storage,
-					'EntityId' => isset($abook['addressbook_id']) ? (int) $abook['addressbook_id'] : '',
+					'EntityId' => isset($abook['addressbook_id']) ? (int) $abook['addressbook_id'] : null,
 					'CTag' => $ctag,
 					'Display' => true,
 					'Order' => 1,
