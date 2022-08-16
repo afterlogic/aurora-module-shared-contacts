@@ -750,40 +750,42 @@ class Module extends \Aurora\System\Module\AbstractModule
 			$groupIds = $aArgs['GroupIds'];
 			$userId = $aArgs['UserId'];
 
-			$userPublicId = Api::getUserPublicIdById($userId);
-			$sUserPrincipalUri = Constants::PRINCIPALS_PREFIX . $userPublicId;
+			if ($groupIds !== null) {
+				$userPublicId = Api::getUserPublicIdById($userId);
+				$sUserPrincipalUri = Constants::PRINCIPALS_PREFIX . $userPublicId;
 
-			$dBPrefix = Api::GetSettings()->DBPrefix;
-			$stmt = Api::GetPDO()->prepare("select * from " . $dBPrefix . "adav_shared_addressbooks where group_id <> 0 and principaluri = ?");
-			$stmt->execute([$sUserPrincipalUri]);
-			$shares = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-			
-			$currentGroupsIds = [];
-			if (is_array($shares)) {
-				$currentGroupsIds = array_map(function ($share) {
-					return $share['group_id'];
-				}, $shares);
-			}
-
-			$groupsIdsToDelete = array_diff($currentGroupsIds, $groupIds);
-			$groupsIdsToCreate = array_diff($groupIds, $currentGroupsIds);
-
-			if (count($groupsIdsToDelete) > 0) {
-				$stmt = Api::GetPDO()->prepare("delete from " . $dBPrefix . "adav_shared_addressbooks 
-				where group_id in (" . \implode(',', $groupsIdsToDelete) . ") and principaluri = ?");
+				$dBPrefix = Api::GetSettings()->DBPrefix;
+				$stmt = Api::GetPDO()->prepare("select * from " . $dBPrefix . "adav_shared_addressbooks where group_id <> 0 and principaluri = ?");
 				$stmt->execute([$sUserPrincipalUri]);
-			}
-
-			if (count($groupsIdsToCreate) > 0) {
-				$stmt = Api::GetPDO()->prepare("select distinct addressbook_id, access, group_id from " . $dBPrefix . "adav_shared_addressbooks where group_id in (" . \implode(',', $groupsIdsToCreate) . ")");
-				$stmt->execute();
 				$shares = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-				foreach ($shares as $share) {
-					if (is_array($share)) {
-						$stmt = Api::GetPDO()->prepare("insert into " . $dBPrefix . "adav_shared_addressbooks
-						(principaluri, access, addressbook_id, addressbookuri, group_id)
-						values (?, ?, ?, ?, ?)");
-						$stmt->execute([$sUserPrincipalUri, $share['access'], $share['addressbook_id'], UUIDUtil::getUUID(), $share['group_id']]);			
+				
+				$currentGroupsIds = [];
+				if (is_array($shares)) {
+					$currentGroupsIds = array_map(function ($share) {
+						return $share['group_id'];
+					}, $shares);
+				}
+
+				$groupsIdsToDelete = array_diff($currentGroupsIds, $groupIds);
+				$groupsIdsToCreate = array_diff($groupIds, $currentGroupsIds);
+
+				if (count($groupsIdsToDelete) > 0) {
+					$stmt = Api::GetPDO()->prepare("delete from " . $dBPrefix . "adav_shared_addressbooks 
+					where group_id in (" . \implode(',', $groupsIdsToDelete) . ") and principaluri = ?");
+					$stmt->execute([$sUserPrincipalUri]);
+				}
+
+				if (count($groupsIdsToCreate) > 0) {
+					$stmt = Api::GetPDO()->prepare("select distinct addressbook_id, access, group_id from " . $dBPrefix . "adav_shared_addressbooks where group_id in (" . \implode(',', $groupsIdsToCreate) . ")");
+					$stmt->execute();
+					$shares = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+					foreach ($shares as $share) {
+						if (is_array($share)) {
+							$stmt = Api::GetPDO()->prepare("insert into " . $dBPrefix . "adav_shared_addressbooks
+							(principaluri, access, addressbook_id, addressbookuri, group_id)
+							values (?, ?, ?, ?, ?)");
+							$stmt->execute([$sUserPrincipalUri, $share['access'], $share['addressbook_id'], UUIDUtil::getUUID(), $share['group_id']]);			
+						}
 					}
 				}
 			}
