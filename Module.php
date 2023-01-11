@@ -314,7 +314,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 			$aArgs['IsValid'] = true;
 
 			$oUser = \Aurora\System\Api::getAuthenticatedUser();
-			$mResult = $mResult->orWhere(function($query) use ($oUser) {
+			$mResult = $mResult->orWhere(function($query) use ($oUser, $aArgs) {
 				$query = $query->where('IdTenant', $oUser->IdTenant)
 					->where('Storage', StorageType::Shared)
 					->where(function($query) {
@@ -344,7 +344,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 						$sStorage = StorageType::AddressBook;
 					}
 
-					$mResult = $mResult->orWhere(function($query) use ($storageArray, $sStorage, $iAddressBookId) {
+					$mResult = $mResult->orWhere(function($query) use ($storageArray, $sStorage, $iAddressBookId, $aArgs) {
 						$query = $query->where('IdUser', $storageArray[1])
 							->where('Storage', $sStorage)
 							->where(function($query) {
