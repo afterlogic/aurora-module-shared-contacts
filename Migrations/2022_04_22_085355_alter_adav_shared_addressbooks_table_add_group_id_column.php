@@ -15,7 +15,7 @@ class AlterAdavSharedAddressbooksTableAddGroupIdColumn extends Migration
     {
         Capsule::schema()->table('adav_shared_addressbooks', function (Blueprint $table) {
             $table->integer('group_id')->unsigned()->default(0)->index();
-        });        
+        });
     }
 
     /**

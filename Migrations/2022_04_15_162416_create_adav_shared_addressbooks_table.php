@@ -16,7 +16,7 @@ class CreateAdavSharedAddressbooksTable extends Migration
         Capsule::schema()->create('adav_shared_addressbooks', function (Blueprint $table) {
             $table->increments('id');
             $table->string('principaluri')->index();
-            $table->unsignedTinyInteger ('access')->default(0);
+            $table->unsignedTinyInteger('access')->default(0);
             $table->unsignedInteger('addressbook_id');
             $table->foreign('addressbook_id')->references('id')->on('adav_addressbooks')->cascadeOnDelete();
             $table->uuid('addressbookuri');
