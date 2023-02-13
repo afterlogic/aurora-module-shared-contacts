@@ -320,10 +320,9 @@ class Module extends \Aurora\System\Module\AbstractModule
                     }
                     );
 
-                if (isset($aArgs['SortField']) && $aArgs['SortField'] === SortField::Frequency) {
-                    // $query->where('Frequency', '!=', -1)
-                    $query->whereNotNull('DateModified');
-                }
+                // if (isset($aArgs['SortField']) && $aArgs['SortField'] === SortField::Frequency) {
+                //     $query->whereNotNull('DateModified');
+                // }
             });
         } else {
             $storageArray = \explode('-', $aArgs['Storage']);
@@ -352,10 +351,9 @@ class Module extends \Aurora\System\Module\AbstractModule
                         if ($iAddressBookId > 0) {
                             $query = $query->where('AddressBookId', $iAddressBookId);
                         }
-                        if (isset($aArgs['SortField']) && $aArgs['SortField'] === SortField::Frequency) {
-                            // $query->where('Frequency', '!=', -1)
-                            $query->whereNotNull('DateModified');
-                        }
+                        // if (isset($aArgs['SortField']) && $aArgs['SortField'] === SortField::Frequency) {
+                        //     $query->whereNotNull('DateModified');
+                        // }
                     });
                 }
             }
@@ -391,10 +389,9 @@ class Module extends \Aurora\System\Module\AbstractModule
                             if ($iAddressBookId > 0) {
                                 $query = $query->where('AddressBookId', $iAddressBookId);
                             }
-                            if (isset($aArgs['SortField']) && $aArgs['SortField'] === SortField::Frequency) {
-                                // $query->where('Frequency', '!=', -1)
-                                $query->whereNotNull('DateModified');
-                            }
+                            // if (isset($aArgs['SortField']) && $aArgs['SortField'] === SortField::Frequency) {
+                            //     $query->whereNotNull('DateModified');
+                            // }
                             if ($iAddressBookId > 0) {
                                 $aWhen[] = "WHEN IdUser = ". $storageArray[1] . " AND Storage = '" . $storage . "' AND AddressBookId = " . $iAddressBookId . " THEN '" . $aBook['Id'] . "'";
                             } else {
