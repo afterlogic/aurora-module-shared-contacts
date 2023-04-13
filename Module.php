@@ -56,6 +56,15 @@ class Module extends \Aurora\System\Module\AbstractModule
         $this->subscribeEvent('Core::DeleteGroup::after', [$this, 'onAfterDeleteGroup']);
     }
 
+    /**
+     *
+     * @return Module
+     */
+    public static function Decorator()
+    {
+        return parent::Decorator();
+    }
+
     public function GetAddressbooks($UserId)
     {
         $mResult = [];
@@ -311,13 +320,13 @@ class Module extends \Aurora\System\Module\AbstractModule
             $aArgs['IsValid'] = true;
 
             $oUser = \Aurora\System\Api::getAuthenticatedUser();
-            $mResult = $mResult->orWhere(function ($query) use ($oUser, $aArgs) {
+            $mResult = $mResult->orWhere(function ($query) use ($oUser) {
                 $query = $query->where('IdTenant', $oUser->IdTenant)
                     ->where('Storage', StorageType::Shared)
                     ->where(
                         function ($query) {
-                        $query->where('Auto', false)->orWhereNull('Auto');
-                    }
+                            $query->where('Auto', false)->orWhereNull('Auto');
+                        }
                     );
 
                 // if (isset($aArgs['SortField']) && $aArgs['SortField'] === SortField::Frequency) {
@@ -331,7 +340,7 @@ class Module extends \Aurora\System\Module\AbstractModule
                 $storage = $storageArray[2];
 
                 $iAddressBookId = 0;
-                if (isset($storage)) {
+                if ($storage) {
                     if ($storage === StorageType::Personal) {
                         $sStorage = StorageType::Personal;
                     } else {
@@ -339,13 +348,13 @@ class Module extends \Aurora\System\Module\AbstractModule
                         $sStorage = StorageType::AddressBook;
                     }
 
-                    $mResult = $mResult->orWhere(function ($query) use ($storageArray, $sStorage, $iAddressBookId, $aArgs) {
+                    $mResult = $mResult->orWhere(function ($query) use ($storageArray, $sStorage, $iAddressBookId) {
                         $query = $query->where('IdUser', $storageArray[1])
                             ->where('Storage', $sStorage)
                             ->where(
                                 function ($query) {
-                                $query->where('Auto', false)->orWhereNull('Auto');
-                            }
+                                    $query->where('Auto', false)->orWhereNull('Auto');
+                                }
                             );
 
                         if ($iAddressBookId > 0) {
@@ -371,19 +380,19 @@ class Module extends \Aurora\System\Module\AbstractModule
                     $storage = $storageArray[2];
 
                     $iAddressBookId = 0;
-                    if (isset($storage)) {
+                    if ($storage) {
                         if ($storage !== StorageType::Personal) {
                             $iAddressBookId = (int) $storage;
                             $storage = StorageType::AddressBook;
                         }
 
-                        $mResult = $mResult->orWhere(function ($query) use ($storageArray, $storage, $iAddressBookId, $aArgs, $aBook, &$aWhen) {
+                        $mResult = $mResult->orWhere(function ($query) use ($storageArray, $storage, $iAddressBookId, $aBook, &$aWhen) {
                             $query = $query->where('IdUser', $storageArray[1])
                                 ->where('Storage', $storage)
                                 ->where(
                                     function ($query) {
-                                    $query->where('Auto', false)->orWhereNull('Auto');
-                                }
+                                        $query->where('Auto', false)->orWhereNull('Auto');
+                                    }
                                 );
 
                             if ($iAddressBookId > 0) {
