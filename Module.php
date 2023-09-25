@@ -419,9 +419,9 @@ class Module extends \Aurora\System\Module\AbstractModule
                             //     $query->whereNotNull('DateModified');
                             // }
                             if ($iAddressBookId > 0) {
-                                $aWhen[] = "WHEN IdUser = ". $storageArray[1] . " AND Storage = '" . $storage . "' AND AddressBookId = " . $iAddressBookId . " THEN '" . $aBook['Id'] . "'";
+                                $aWhen[] = "WHEN IdUser = " . $storageArray[1] . " AND Storage = '" . $storage . "' AND AddressBookId = " . $iAddressBookId . " THEN '" . $aBook['Id'] . "'";
                             } else {
-                                $aWhen[] = "WHEN IdUser = ". $storageArray[1] . " AND Storage = '" . $storage . "' THEN '" . $aBook['Id'] . "'";
+                                $aWhen[] = "WHEN IdUser = " . $storageArray[1] . " AND Storage = '" . $storage . "' THEN '" . $aBook['Id'] . "'";
                             }
                         });
                     }
@@ -697,7 +697,7 @@ class Module extends \Aurora\System\Module\AbstractModule
         }
     }
 
-        /**
+    /**
      * @ignore
      * @param array $aArgs Arguments of event.
      * @param mixed $mResult Is passed by reference.
