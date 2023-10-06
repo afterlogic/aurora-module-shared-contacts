@@ -56,6 +56,14 @@ class Module extends \Aurora\System\Module\AbstractModule
         $this->subscribeEvent('Core::DeleteUser::before', [$this, 'onBeforeDeleteUser']);
         $this->subscribeEvent('Core::DeleteUser::after', [$this, 'onAfterDeleteUser']);
         $this->subscribeEvent('Core::DeleteGroup::after', [$this, 'onAfterDeleteGroup']);
+
+        $this->subscribeEvent('Contacts::ContactQueryBuilder', array($this, 'onContactQueryBuilder'));
+        $this->subscribeEvent('Contacts::CreateContact::before', array($this, 'onBeforeCreateContact'));
+        $this->subscribeEvent('Contacts::CheckAccessToAddressBook::after', array($this, 'onAfterCheckAccessToAddressBook'));
+
+        $this->subscribeEvent(self::GetName() . '::UpdateAddressbookShare::before', array($this, 'onBeforeUpdateAddressbookShare'));
+        $this->subscribeEvent(self::GetName() . '::LeaveShare::before', array($this, 'onBeforeUpdateAddressbookShare'));
+
     }
 
     /**
@@ -91,11 +99,9 @@ class Module extends \Aurora\System\Module\AbstractModule
 
         $dBPrefix = Api::GetSettings()->DBPrefix;
         $stmt = Api::GetPDO()->prepare("
-		select ab.*, sab.access, sab.group_id, ca.Id as addressbook_id, cu.Id as UserId from " . $dBPrefix . "adav_shared_addressbooks sab 
+		select ab.*, sab.access, sab.group_id from " . $dBPrefix . "adav_shared_addressbooks sab 
 		left join " . $dBPrefix . "adav_addressbooks ab on sab.addressbook_id = ab.id
-			left join " . $dBPrefix . "core_users cu on ab.principaluri = CONCAT('principals/', cu.PublicId)
-				left join " . $dBPrefix . "contacts_addressbooks ca on ca.UUID = ab.uri
-					where sab.principaluri = ?
+			where sab.principaluri = ?
 		");
 
         $principalUri = Constants::PRINCIPALS_PREFIX . Api::getUserPublicIdById($UserId);
@@ -107,10 +113,10 @@ class Module extends \Aurora\System\Module\AbstractModule
 
         foreach ($abooks as $abook) {
             if ($abook['principaluri'] !== $principalUri) {
-                if (isset($abook['addressbook_id'])) {
-                    $storage =  StorageType::Shared . '-' . $abook['UserId'] . '-' . $abook['addressbook_id'];
+                if (isset($abook['id'])) {
+                    $storage =  StorageType::Shared . '-' . $abook['id'];
                 } else {
-                    $storage =  StorageType::Shared . '-' . $abook['UserId'] . '-' . StorageType::Personal;
+                    $storage =  StorageType::Shared . '-' . StorageType::Personal;
                 }
 
                 if (count($mResult) > 0) {
@@ -131,13 +137,12 @@ class Module extends \Aurora\System\Module\AbstractModule
                 }
 
                 $prevState = Api::skipCheckUserRole(true);
-                $ctag = ContactsModule::Decorator()->GetCTag($abook['UserId'], $storage);
                 Api::skipCheckUserRole($prevState);
 
                 $mResult[] = [
                     'Id' => $storage,
                     'EntityId' => isset($abook['addressbook_id']) ? (int) $abook['addressbook_id'] : null,
-                    'CTag' => $ctag,
+                    'CTag' => isset($abook['synctoken']) ? (int) $abook['synctoken'] : 0,
                     'Display' => true,
                     'Order' => 1,
                     'DisplayName' => $abook['displayname'] . ' (' . basename($abook['principaluri']) . ')',
@@ -256,38 +261,17 @@ class Module extends \Aurora\System\Module\AbstractModule
         }
     }
 
-    protected function getAddressbookByComplexId($iUserId, $abookComplexId)
+    protected function getAddressbook($iUserId, $abookId)
     {
         $mResult = false;
 
         $dBPrefix = Api::GetSettings()->DBPrefix;
 
-        $abookId = \explode('-', $abookComplexId);
-
-        if (count($abookId) === 1 && $abookId[0] === StorageType::Personal) {
-            $abookId[] = StorageType::Personal;
-        }
-
-        if (count($abookId) > 1) {
-            if (count($abookId) < 3) {
-                $abookId[2] = $abookId[1];
-            }
-
-            $iUserId  = $abookId[0] === StorageType::Shared ? $abookId[1] : $iUserId;
-            if ($abookId[2] === StorageType::Personal) {
-                $addressbookUri = Constants::ADDRESSBOOK_DEFAULT_NAME;
-            } else {
-                $abook = AddressBook::where('UserId', $iUserId)->where('Id', $abookId[2])->first();
-                if ($abook) {
-                    $addressbookUri = $abook->UUID;
-                }
-            }
-            $userPublicId = Api::getUserPublicIdById($iUserId);
-            if (!empty($addressbookUri) && $userPublicId) {
-                $stmt = Api::GetPDO()->prepare("select * from " . $dBPrefix . "adav_addressbooks where principaluri = ? and uri = ?");
-                $stmt->execute([Constants::PRINCIPALS_PREFIX . $userPublicId, $addressbookUri]);
-                $mResult = $stmt->fetch(\PDO::FETCH_ASSOC);
-            }
+        $userPublicId = Api::getUserPublicIdById($iUserId);
+        if (!empty($abookId) && $userPublicId) {
+            $stmt = Api::GetPDO()->prepare("select * from " . $dBPrefix . "adav_addressbooks where principaluri = ? and id = ?");
+            $stmt->execute([Constants::PRINCIPALS_PREFIX . $userPublicId, $abookId]);
+            $mResult = $stmt->fetch(\PDO::FETCH_ASSOC);
         }
 
         return $mResult;
@@ -297,7 +281,7 @@ class Module extends \Aurora\System\Module\AbstractModule
     {
         $dBPrefix = Api::GetSettings()->DBPrefix;
 
-        $book = $this->getAddressbookByComplexId($iUserId, $abookComplexId);
+        $book = $this->getAddressbook($iUserId, $abookComplexId);
         if ($book) {
             $shareePublicId = $share['PublicId'];
             $access = $share['Access'];
@@ -312,7 +296,7 @@ class Module extends \Aurora\System\Module\AbstractModule
     protected function updateShare($iUserId, $abookComplexId, $share)
     {
         $dBPrefix = Api::GetSettings()->DBPrefix;
-        $book = $this->getAddressbookByComplexId($iUserId, $abookComplexId);
+        $book = $this->getAddressbook($iUserId, $abookComplexId);
         if ($book) {
             $shareePublicId = $share['PublicId'];
             $access = $share['Access'];
@@ -325,110 +309,26 @@ class Module extends \Aurora\System\Module\AbstractModule
 
     public function onGetStorages(&$aStorages)
     {
-        $aStorages[self::$iStorageOrder] = StorageType::Shared;
+        // $aStorages[self::$iStorageOrder] = StorageType::Shared;
     }
 
     public function prepareFiltersFromStorage(&$aArgs, &$mResult)
     {
-        if (!isset($mResult)) {
-            $mResult = \Aurora\Modules\Contacts\Models\Contact::query();
-        }
-        if (isset($aArgs['Storage']) && ($aArgs['Storage'] === StorageType::Shared || $aArgs['Storage'] === StorageType::All)) {
+        $storageArray = \explode('-', $aArgs['Storage']);
+        if ((count($storageArray) === 2 && $storageArray[0] === StorageType::Shared) || $storageArray[0] === StorageType::All) {
+            $oUser = Api::getUserById($aArgs['UserId']);
             $aArgs['IsValid'] = true;
 
-            $oUser = \Aurora\System\Api::getAuthenticatedUser();
-            $mResult = $mResult->orWhere(function ($query) use ($oUser) {
-                $query = $query->where('IdTenant', $oUser->IdTenant)
-                    ->where('Storage', StorageType::Shared)
-                    ->where(
-                        function ($query) {
-                            $query->where('Auto', false)->orWhereNull('Auto');
-                        }
-                    );
-
-                // if (isset($aArgs['SortField']) && $aArgs['SortField'] === SortField::Frequency) {
-                //     $query->whereNotNull('DateModified');
-                // }
-            });
-        } else {
-            $storageArray = \explode('-', $aArgs['Storage']);
-            if (count($storageArray) === 3 && $storageArray[0] === StorageType::Shared) {
-                $aArgs['IsValid'] = true;
-                $storage = $storageArray[2];
-
-                $iAddressBookId = 0;
-                if ($storage) {
-                    if ($storage === StorageType::Personal) {
-                        $sStorage = StorageType::Personal;
-                    } else {
-                        $iAddressBookId = (int) $storage;
-                        $sStorage = StorageType::AddressBook;
-                    }
-
-                    $mResult = $mResult->orWhere(function ($query) use ($storageArray, $sStorage, $iAddressBookId) {
-                        $query = $query->where('IdUser', $storageArray[1])
-                            ->where('Storage', $sStorage)
-                            ->where(
-                                function ($query) {
-                                    $query->where('Auto', false)->orWhereNull('Auto');
-                                }
-                            );
-
-                        if ($iAddressBookId > 0) {
-                            $query = $query->where('AddressBookId', $iAddressBookId);
-                        }
-                        // if (isset($aArgs['SortField']) && $aArgs['SortField'] === SortField::Frequency) {
-                        //     $query->whereNotNull('DateModified');
-                        // }
-                    });
+            $mResult->whereIn('adav_cards.addressbookid', function ($q) use ($storageArray, $oUser) {
+                $q->select('addressbook_id')
+                        ->from('adav_shared_addressbooks')
+                        ->where('principaluri', Constants::PRINCIPALS_PREFIX . $oUser->PublicId);
+                if ($storageArray[0] !== StorageType::All && isset($storageArray[1])) {
+                    $q->where('addressbook_id', (int) $storageArray[1]);
                 }
-            }
-        }
 
-        if (isset($aArgs['Storage']) && $aArgs['Storage'] === StorageType::All) {
-            $aBooks = $this->GetAddressbooks($aArgs['UserId']);
-
-            if (is_array($aBooks) && count($aBooks) > 0) {
-                $aArgs['IsValid'] = true;
-
-                $aWhen = [];
-                foreach ($aBooks as $aBook) {
-                    $storageArray = \explode('-', $aBook['Id']);
-                    $storage = $storageArray[2];
-
-                    $iAddressBookId = 0;
-                    if ($storage) {
-                        if ($storage !== StorageType::Personal) {
-                            $iAddressBookId = (int) $storage;
-                            $storage = StorageType::AddressBook;
-                        }
-
-                        $mResult = $mResult->orWhere(function ($query) use ($storageArray, $storage, $iAddressBookId, $aBook, &$aWhen) {
-                            $query = $query->where('IdUser', $storageArray[1])
-                                ->where('Storage', $storage)
-                                ->where(
-                                    function ($query) {
-                                        $query->where('Auto', false)->orWhereNull('Auto');
-                                    }
-                                );
-
-                            if ($iAddressBookId > 0) {
-                                $query = $query->where('AddressBookId', $iAddressBookId);
-                            }
-                            // if (isset($aArgs['SortField']) && $aArgs['SortField'] === SortField::Frequency) {
-                            //     $query->whereNotNull('DateModified');
-                            // }
-                            if ($iAddressBookId > 0) {
-                                $aWhen[] = "WHEN IdUser = " . $storageArray[1] . " AND Storage = '" . $storage . "' AND AddressBookId = " . $iAddressBookId . " THEN '" . $aBook['Id'] . "'";
-                            } else {
-                                $aWhen[] = "WHEN IdUser = " . $storageArray[1] . " AND Storage = '" . $storage . "' THEN '" . $aBook['Id'] . "'";
-                            }
-                        });
-                    }
-                }
-                $rawSql = Capsule::connection()->raw("*, CASE " . \implode("\r\n", $aWhen) . " ELSE Storage END as Storage");
-                $mResult->addSelect($rawSql);
-            }
+            }, 'or');
+            $mResult->addSelect(Capsule::connection()->raw('true as Shared'));
         }
     }
 
@@ -567,7 +467,7 @@ class Module extends \Aurora\System\Module\AbstractModule
         }
     }
 
-    public function UpdateAddressBookShare($UserId, $Id, $Shares)
+    public function UpdateAddressbookShare($UserId, $Id, $Shares)
     {
         $mResult = true;
 
@@ -645,35 +545,13 @@ class Module extends \Aurora\System\Module\AbstractModule
 
     public function LeaveShare($UserId, $Id)
     {
-        $mResult = false;
         Api::checkUserRoleIsAtLeast(UserRole::NormalUser);
         Api::CheckAccess($UserId);
 
-        $abook = $this->getAddressbookByComplexId($UserId, $Id);
-
-        if ($abook) {
-            $principalUri = Constants::PRINCIPALS_PREFIX . Api::getUserPublicIdById($UserId);
-            $dBPrefix = Api::GetSettings()->DBPrefix;
-
-            $stmt = Api::GetPDO()->prepare("select count(*) from " . $dBPrefix . "adav_shared_addressbooks 
-			where principaluri = ? and addressbook_id = ? and group_id = 0");
-            $stmt->execute([$principalUri, $abook['id']]);
-            $cnt = $stmt->fetch();
-
-            if ((int) $cnt[0] > 0) { //persona sharing
-                $stmt = Api::GetPDO()->prepare("update " . $dBPrefix . "adav_shared_addressbooks
-				set access = ?
-				where principaluri = ? and addressbook_id = ? and group_id = 0");
-                $mResult = $stmt->execute([Access::NoAccess, $principalUri, $abook['id']]);
-            } else {
-                $stmt = Api::GetPDO()->prepare("insert into " . $dBPrefix . "adav_shared_addressbooks
-				(principaluri, access, addressbook_id, addressbookuri, group_id)
-				values (?, ?, ?, ?, ?)");
-                $mResult = $stmt->execute([$principalUri, Access::NoAccess, $abook['id'], UUIDUtil::getUUID(), 0]);
-            }
-        }
-
-        return $mResult;
+        $userPublicId = Api::getUserPublicIdById($UserId);
+        return !!Capsule::connection()->table('adav_shared_addressbooks')
+            ->where('principaluri', Constants::PRINCIPALS_PREFIX . $userPublicId)
+            ->where('addressbook_id', $Id)->delete();
     }
 
     public function onAfterDeleteGroup($aArgs, &$mResult)
@@ -813,6 +691,98 @@ class Module extends \Aurora\System\Module\AbstractModule
                 $dBPrefix = Api::GetSettings()->DBPrefix;
                 $stmt = Api::GetPDO()->prepare("delete from " . $dBPrefix . "adav_shared_addressbooks where principaluri in (" . \implode(',', $principals) . ") and group_id = ?");
                 $stmt->execute([$aArgs['GroupId']]);
+            }
+        }
+    }
+
+    public function onContactQueryBuilder(&$aArgs, &$query)
+    {
+        $userPublicId = Api::getUserPublicIdById($aArgs['UserId']);
+
+        $query->leftJoin('adav_shared_addressbooks', 'adav_cards.addressbookid', '=', 'adav_shared_addressbooks.addressbook_id')
+            ->orWhere(function ($q) use ($userPublicId, $aArgs) {
+                $q->where('adav_shared_addressbooks.principaluri', Constants::PRINCIPALS_PREFIX . $userPublicId)
+                ->where('adav_cards.id', $aArgs['UUID']);
+            });
+    }
+
+    public function onBeforeCreateContact(&$aArgs, &$mResult)
+    {
+        if (isset($aArgs['Contact'])) {
+            if (isset($aArgs['UserId'])) {
+                $aArgs['Contact']['UserId'] = $aArgs['UserId'];
+            }
+            $this->populateStorage($aArgs['Contact'], $mResult);
+        }
+    }
+
+    /**
+     *
+     */
+    public function populateStorage(&$aArgs)
+    {
+        if (isset($aArgs['Storage'], $aArgs['UserId'])) {
+            $aStorageParts = \explode('-', $aArgs['Storage']);
+            if (count($aStorageParts) > 1) {
+                $iAddressBookId = $aStorageParts[1];
+                if ($aStorageParts[0] === StorageType::Shared) {
+                    if (!is_numeric($iAddressBookId)) {
+                        return;
+                    }
+                    $aArgs['Storage'] = $aStorageParts[0];
+                    $aArgs['AddressBookId'] = $iAddressBookId;
+                }
+            }
+        }
+    }
+
+    public function onAfterCheckAccessToAddressBook(&$aArgs, &$mResult)
+    {
+        if (isset($aArgs['User'], $aArgs['AddressBookId'])) {
+            $query = Capsule::connection()->table('adav_addressbooks')
+                ->select('adav_addressbooks.id')
+                ->leftJoin('adav_shared_addressbooks', 'adav_addressbooks.id', '=', 'adav_shared_addressbooks.addressbook_id')
+                ->where('adav_shared_addressbooks.principaluri', Constants::PRINCIPALS_PREFIX . $aArgs['User']->PublicId)
+                ->where('adav_addressbooks.id', $aArgs['AddressBookId']);
+            if (isset($aArgs['Access'])) {
+                $query->where('access', $aArgs['Access']);
+            }
+            $mResult = !!$query->first();
+            if ($mResult) {
+                return true;
+            }
+        };
+    }
+
+    /**
+     *
+     */
+    public function onBeforeUpdateAddressbookShare(&$aArgs)
+    {
+        if (isset($aArgs['Id'], $aArgs['UserId'])) {
+            $aStorageParts = \explode('-', $aArgs['Id']);
+            if (count($aStorageParts) > 1) {
+                $iAddressBookId = $aStorageParts[1];
+
+                if (!is_numeric($iAddressBookId)) {
+                    return;
+                }
+                $aArgs['Id'] = $iAddressBookId;
+            } elseif (isset($aStorageParts[0])) {
+                $storagesMapToAddressbooks = \Aurora\Modules\Contacts\Module::Decorator()->GetStoragesMapToAddressbooks();
+                if (isset($storagesMapToAddressbooks[$aStorageParts[0]])) {
+                    $addressbookUri = $storagesMapToAddressbooks[$aStorageParts[0]];
+                    $userPublicId = Api::getUserPublicIdById($aArgs['UserId']);
+                    if ($userPublicId) {
+                        $row = Capsule::connection()->table('adav_addressbooks')
+                            ->where('principaluri', Constants::PRINCIPALS_PREFIX . $userPublicId)
+                            ->where('uri', $addressbookUri)
+                            ->select('adav_addressbooks.id as addressbook_id')->first();
+                        if ($row) {
+                            $aArgs['AddressBookId'] = $row->addressbook_id;
+                        }
+                    }
+                }
             }
         }
     }
