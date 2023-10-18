@@ -49,7 +49,7 @@ CShareAddressbookControlView.prototype.confirmedLeaveShare = function (addressbo
 CShareAddressbookControlView.prototype.onLeaveShareResponse = function (response, request)
 {
 	if (response && response.Result) {
-		Ajax.send('Contacts', 'GetAddressBooks');
+		Ajax.send('Contacts', 'GetStorages');
 	} else {
 		Api.showErrorByCode(response);
 	}
