@@ -62,7 +62,10 @@ class Module extends \Aurora\System\Module\AbstractModule
         $this->subscribeEvent('Contacts::CheckAccessToAddressBook::after', array($this, 'onAfterCheckAccessToAddressBook'));
 
         $this->subscribeEvent(self::GetName() . '::UpdateAddressbookShare::before', array($this, 'onBeforeUpdateAddressbookShare'));
+        $this->subscribeEvent(self::GetName() . '::GetSharesForAddressbook::before', array($this, 'onBeforeUpdateAddressbookShare'));
+
         $this->subscribeEvent(self::GetName() . '::LeaveShare::before', array($this, 'onBeforeUpdateAddressbookShare'));
+        $this->subscribeEvent('Contacts::GetContacts::before', array($this, 'populateStorage'));
 
     }
 
@@ -201,17 +204,13 @@ class Module extends \Aurora\System\Module\AbstractModule
     {
         $dBPrefix = Api::GetSettings()->DBPrefix;
         $stmt = Api::GetPDO()->prepare("
-		select * from (select sab.*, CASE WHEN ca.Id is null THEN ? ELSE CONCAT(?, ca.Id) END as storage
-		from " . $dBPrefix . "adav_shared_addressbooks sab 
+		select sab.* from " . $dBPrefix . "adav_shared_addressbooks sab 
 		left join " . $dBPrefix . "adav_addressbooks ab on sab.addressbook_id = ab.id
 			left join " . $dBPrefix . "core_users cu on ab.principaluri = CONCAT('principals/', cu.PublicId)
-				left join " . $dBPrefix . "contacts_addressbooks ca on ca.UUID = ab.uri
-					where cu.Id = ?) as sub_select where storage = ?
+				where cu.Id = ? AND ab.id = ?
 		");
 
         $stmt->execute([
-            StorageType::Personal,
-            StorageType::AddressBook . '-',
             $iUserId,
             $abookComplexId
         ]);
@@ -223,24 +222,21 @@ class Module extends \Aurora\System\Module\AbstractModule
     {
         $dBPrefix = Api::GetSettings()->DBPrefix;
         $stmt = Api::GetPDO()->prepare("
-		select * from (select sab.*, CASE WHEN ca.Id is null THEN ? ELSE CONCAT(?, ca.Id) END as storage
+		select sab.*
 		from " . $dBPrefix . "adav_shared_addressbooks sab 
 		left join " . $dBPrefix . "adav_addressbooks ab on sab.addressbook_id = ab.id
 			left join " . $dBPrefix . "core_users cu on ab.principaluri = CONCAT('principals/', cu.PublicId)
-				left join " . $dBPrefix . "contacts_addressbooks ca on ca.UUID = ab.uri
-					where cu.Id = ? and sab.principaluri = ? and sab.group_id = ?) as sub_select where storage = ?
+				where cu.Id = ? and sab.principaluri = ? and sab.group_id = ? and ab.id = ?
 		");
 
         $stmt->execute([
-            StorageType::Personal,
-            StorageType::AddressBook . '-',
             $iUserId,
             $principalUri,
             $groupId,
             $abookComplexId
         ]);
 
-        return $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 
     protected function deleteShareByPublicIds($userId, $abookComplexId, $publicIds)
@@ -250,9 +246,12 @@ class Module extends \Aurora\System\Module\AbstractModule
         $sharesIds = [];
         foreach ($publicIds as $publicId) {
             $publicId = \json_decode($publicId);
-            $share = $this->getShareForAddressbook($userId, $abookComplexId, Constants::PRINCIPALS_PREFIX . $publicId[0], $publicId[1]);
-            if ($share) {
-                $sharesIds[] = $share['id'];
+            $shares = $this->getShareForAddressbook($userId, $abookComplexId, Constants::PRINCIPALS_PREFIX . $publicId[0], $publicId[1]);
+            if (is_array($shares) && count($shares) > 0) {
+                $ids = array_map(function ($share) {
+                    return $share['id'];
+                }, $shares);
+                $sharesIds = array_merge($sharesIds, $ids);
             }
         }
         if (count($sharesIds) > 0) {
@@ -314,17 +313,16 @@ class Module extends \Aurora\System\Module\AbstractModule
 
     public function prepareFiltersFromStorage(&$aArgs, &$mResult)
     {
-        $storageArray = \explode('-', $aArgs['Storage']);
-        if ((count($storageArray) === 2 && $storageArray[0] === StorageType::Shared) || $storageArray[0] === StorageType::All) {
+        if ($aArgs['Storage'] === StorageType::Shared || $aArgs['Storage'] === StorageType::All) {
             $oUser = Api::getUserById($aArgs['UserId']);
             $aArgs['IsValid'] = true;
 
-            $mResult->whereIn('adav_cards.addressbookid', function ($q) use ($storageArray, $oUser) {
+            $mResult->whereIn('adav_cards.addressbookid', function ($q) use ($aArgs, $oUser) {
                 $q->select('addressbook_id')
                         ->from('adav_shared_addressbooks')
                         ->where('principaluri', Constants::PRINCIPALS_PREFIX . $oUser->PublicId);
-                if ($storageArray[0] !== StorageType::All && isset($storageArray[1])) {
-                    $q->where('addressbook_id', (int) $storageArray[1]);
+                if ($aArgs['Storage'] !== StorageType::All && isset($aArgs['AddressBookId'])) {
+                    $q->where('addressbook_id', (int) $aArgs['AddressBookId']);
                 }
 
             }, 'or');
@@ -699,11 +697,19 @@ class Module extends \Aurora\System\Module\AbstractModule
     {
         $userPublicId = Api::getUserPublicIdById($aArgs['UserId']);
 
-        $query->leftJoin('adav_shared_addressbooks', 'adav_cards.addressbookid', '=', 'adav_shared_addressbooks.addressbook_id')
-            ->orWhere(function ($q) use ($userPublicId, $aArgs) {
-                $q->where('adav_shared_addressbooks.principaluri', Constants::PRINCIPALS_PREFIX . $userPublicId)
-                ->where('adav_cards.id', $aArgs['UUID']);
-            });
+        if (isset($aArgs['Query'])) {
+            $aArgs['Query']->leftJoin('adav_shared_addressbooks', 'adav_cards.addressbookid', '=', 'adav_shared_addressbooks.addressbook_id');
+        }
+        $query->orWhere(function ($q) use ($userPublicId, $aArgs) {
+            $q->where('adav_shared_addressbooks.principaluri', Constants::PRINCIPALS_PREFIX . $userPublicId);
+            if (is_array($aArgs['UUID'])) {
+                if (count($aArgs['UUID']) > 0) {
+                    $q->whereIn('adav_cards.id', $aArgs['UUID']);
+                }
+            } else {
+                $q->where('adav_cards.id', $aArgs['UUID']);
+            }
+        });
     }
 
     public function onBeforeCreateContact(&$aArgs, &$mResult)
@@ -745,7 +751,11 @@ class Module extends \Aurora\System\Module\AbstractModule
                 ->where('adav_shared_addressbooks.principaluri', Constants::PRINCIPALS_PREFIX . $aArgs['User']->PublicId)
                 ->where('adav_addressbooks.id', $aArgs['AddressBookId']);
             if (isset($aArgs['Access'])) {
-                $query->where('access', $aArgs['Access']);
+                if (is_array($aArgs['Access'])) {
+                    $query->whereIn('access', $aArgs['Access']);
+                } else {
+                    $query->where('access', $aArgs['Access']);
+                }
             }
             $mResult = !!$query->first();
             if ($mResult) {
@@ -779,7 +789,7 @@ class Module extends \Aurora\System\Module\AbstractModule
                             ->where('uri', $addressbookUri)
                             ->select('adav_addressbooks.id as addressbook_id')->first();
                         if ($row) {
-                            $aArgs['AddressBookId'] = $row->addressbook_id;
+                            $aArgs['Id'] = $row->addressbook_id;
                         }
                     }
                 }
