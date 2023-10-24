@@ -317,16 +317,27 @@ class Module extends \Aurora\System\Module\AbstractModule
             $oUser = Api::getUserById($aArgs['UserId']);
             $aArgs['IsValid'] = true;
 
-            $mResult->whereIn('adav_cards.addressbookid', function ($q) use ($aArgs, $oUser) {
-                $q->select('addressbook_id')
-                        ->from('adav_shared_addressbooks')
-                        ->where('principaluri', Constants::PRINCIPALS_PREFIX . $oUser->PublicId);
-                if ($aArgs['Storage'] !== StorageType::All && isset($aArgs['AddressBookId'])) {
-                    $q->where('addressbook_id', (int) $aArgs['AddressBookId']);
-                }
+            $q = Capsule::connection()->table('adav_shared_addressbooks')
+                ->select('addressbook_id')
+                ->from('adav_shared_addressbooks')
+                ->where('principaluri', Constants::PRINCIPALS_PREFIX . $oUser->PublicId);
 
-            }, 'or');
-            $mResult->addSelect(Capsule::connection()->raw('true as Shared'));
+            if ($aArgs['Storage'] !== StorageType::All && isset($aArgs['AddressBookId'])) {
+                $q->where('addressbook_id', (int) $aArgs['AddressBookId']);
+            }
+
+            $ids = $q->pluck('addressbook_id')->all();
+
+            $mResult->whereIn('adav_cards.addressbookid', $ids, 'or');
+
+            if (isset($aArgs['Query']) && count($ids) > 0) {
+                $aArgs['Query']->addSelect(Capsule::connection()->raw('
+                CASE
+                    WHEN ' . Capsule::connection()->getTablePrefix() . 'adav_cards.addressbookid IN (' . implode(',', $ids) . ') THEN true
+                    ELSE false
+                END as Shared
+                '));
+            }
         }
     }
 
