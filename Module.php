@@ -40,7 +40,7 @@ class Module extends \Aurora\System\Module\AbstractModule
     public function init()
     {
         $this->subscribeEvent('Contacts::GetStorages', array($this, 'onGetStorages'));
-        $this->subscribeEvent('Contacts::PrepareFiltersFromStorage', array($this, 'prepareFiltersFromStorage'));
+        $this->subscribeEvent('Contacts::PrepareFiltersFromStorage', array($this, 'onPrepareFiltersFromStorage'));
 
         $this->subscribeEvent('Contacts::UpdateSharedContacts::after', array($this, 'onAfterUpdateSharedContacts'));
 
@@ -311,7 +311,7 @@ class Module extends \Aurora\System\Module\AbstractModule
         // $aStorages[self::$iStorageOrder] = StorageType::Shared;
     }
 
-    public function prepareFiltersFromStorage(&$aArgs, &$mResult)
+    public function onPrepareFiltersFromStorage(&$aArgs, &$mResult)
     {
         if ($aArgs['Storage'] === StorageType::Shared || $aArgs['Storage'] === StorageType::All) {
             $oUser = Api::getUserById($aArgs['UserId']);
