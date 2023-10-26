@@ -144,7 +144,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 
                 $mResult[] = [
                     'Id' => $storage,
-                    'EntityId' => isset($abook['addressbook_id']) ? (int) $abook['addressbook_id'] : null,
+                    'EntityId' => isset($abook['id']) ? (int) $abook['id'] : null,
                     'CTag' => isset($abook['synctoken']) ? (int) $abook['synctoken'] : 0,
                     'Display' => true,
                     'Order' => 1,
