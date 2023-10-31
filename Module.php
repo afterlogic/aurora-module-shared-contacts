@@ -313,7 +313,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 
     public function onPrepareFiltersFromStorage(&$aArgs, &$mResult)
     {
-        if ($aArgs['Storage'] === StorageType::Shared || $aArgs['Storage'] === StorageType::All) {
+        if (isset($aArgs['Storage']) && $aArgs['Storage'] === StorageType::Shared || $aArgs['Storage'] === StorageType::All) {
             $oUser = Api::getUserById($aArgs['UserId']);
             $aArgs['IsValid'] = true;
 
