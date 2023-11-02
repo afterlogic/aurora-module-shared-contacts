@@ -560,7 +560,8 @@ class Module extends \Aurora\System\Module\AbstractModule
         $userPublicId = Api::getUserPublicIdById($UserId);
         return !!Capsule::connection()->table('adav_shared_addressbooks')
             ->where('principaluri', Constants::PRINCIPALS_PREFIX . $userPublicId)
-            ->where('addressbook_id', $Id)->delete();
+            ->where('addressbook_id', $Id)
+            ->update(['access' => Access::NoAccess]);
     }
 
     public function onAfterDeleteGroup($aArgs, &$mResult)
