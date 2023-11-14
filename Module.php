@@ -331,12 +331,12 @@ class Module extends \Aurora\System\Module\AbstractModule
             $mResult->whereIn('adav_cards.addressbookid', $ids, 'or');
 
             if (isset($aArgs['Query']) && count($ids) > 0) {
-                $aArgs['Query']->addSelect(Capsule::connection()->raw('
-                CASE
+                $aArgs['Query']->addSelect(Capsule::connection()->raw(
+                    'CASE
                     WHEN ' . Capsule::connection()->getTablePrefix() . 'adav_cards.addressbookid IN (' . implode(',', $ids) . ') THEN true
                     ELSE false
-                END as Shared
-                '));
+                END as Shared'
+                ));
             }
         }
     }
