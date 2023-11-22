@@ -558,10 +558,27 @@ class Module extends \Aurora\System\Module\AbstractModule
         Api::CheckAccess($UserId);
 
         $userPublicId = Api::getUserPublicIdById($UserId);
-        return !!Capsule::connection()->table('adav_shared_addressbooks')
+
+        $sharedAddressBook =  Capsule::connection()->table('adav_shared_addressbooks')
             ->where('principaluri', Constants::PRINCIPALS_PREFIX . $userPublicId)
             ->where('addressbook_id', $Id)
+            ->where('group_id', 0)
+            ->first();
+
+        if ($sharedAddressBook) {
+            Capsule::connection()->table('adav_shared_addressbooks')
+            ->where('principaluri', Constants::PRINCIPALS_PREFIX . $userPublicId)
+            ->where('addressbook_id', $Id)
+            ->where('group_id', 0)
             ->update(['access' => Access::NoAccess]);
+        } else {
+            $stmt = Api::GetPDO()->prepare("insert into " . Api::GetSettings()->DBPrefix . "adav_shared_addressbooks
+			(principaluri, access, addressbook_id, addressbookuri, group_id)
+			values (?, ?, ?, ?, ?)");
+            $stmt->execute([Constants::PRINCIPALS_PREFIX . $userPublicId,  Access::NoAccess, $Id, UUIDUtil::getUUID(), 0]);
+        }
+
+        return true;
     }
 
     public function onAfterDeleteGroup($aArgs, &$mResult)
