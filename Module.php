@@ -102,7 +102,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 
         $dBPrefix = Api::GetSettings()->DBPrefix;
         $stmt = Api::GetPDO()->prepare("
-		select ab.*, sab.access, sab.group_id from " . $dBPrefix . "adav_shared_addressbooks sab 
+		select ab.*, sab.access, sab.group_id, sab.addressbookuri from " . $dBPrefix . "adav_shared_addressbooks sab 
 		left join " . $dBPrefix . "adav_addressbooks ab on sab.addressbook_id = ab.id
 			where sab.principaluri = ?
 		");
@@ -149,6 +149,7 @@ class Module extends \Aurora\System\Module\AbstractModule
                     'Display' => true,
                     'Order' => 1,
                     'DisplayName' => $abook['displayname'] . ' (' . basename($abook['principaluri']) . ')',
+                    'Uri' => $abook['addressbookuri'],
                     'Shared' => true,
                     'Access' => (int) $abook['access'],
                     'Owner' => basename($abook['principaluri']),
