@@ -125,13 +125,20 @@ class Module extends \Aurora\System\Module\AbstractModule
                 if (count($mResult) > 0) {
                     foreach ($mResult as $key => $val) {
                         if ($val['Id'] === $storage) {
-                            if ($val['GroupId'] != 0) { //group sharing
-                                if ($abook['access'] !== Access::Read) {
-                                    if ($val['Access'] > (int) $abook['access'] || (int) $abook['access'] === Access::NoAccess) {
-                                        $mResult[$key]['Access'] = (int) $abook['access'];
+                            $iAccess = $mResult[$key]['Access'];
+                            if ($val['GroupId'] === 0 && $iAccess === Access::NoAccess) {
+                                continue 2;
+                            }
+                            $iNewAccess = $abook['access'];
+                            if ((int) $abook['group_id'] === 0) { //personal sharing
+                                $mResult[$key]['Access'] = $iNewAccess;
+                            } else { // group sharing
+                                if ($iNewAccess !== Access::Read) {
+                                    if ($iAccess < $iNewAccess || $iNewAccess === Access::NoAccess) {
+                                        $mResult[$key]['Access'] = $iNewAccess;
                                     }
-                                } elseif ($val['Access'] !== Access::Write) {
-                                    $mResult[$key]['Access'] = (int) $abook['access'];
+                                } elseif ($iAccess !== Access::Write) {
+                                    $mResult[$key]['Access'] = $iNewAccess;
                                 }
                             }
                             continue 2;
@@ -776,19 +783,42 @@ class Module extends \Aurora\System\Module\AbstractModule
     {
         if (isset($aArgs['User'], $aArgs['AddressBookId'])) {
             $query = Capsule::connection()->table('adav_addressbooks')
-                ->select('adav_addressbooks.id')
+                ->select('adav_addressbooks.id', 'adav_shared_addressbooks.access', 'adav_shared_addressbooks.group_id')
                 ->leftJoin('adav_shared_addressbooks', 'adav_addressbooks.id', '=', 'adav_shared_addressbooks.addressbook_id')
                 ->where('adav_shared_addressbooks.principaluri', Constants::PRINCIPALS_PREFIX . $aArgs['User']->PublicId)
                 ->where('adav_addressbooks.id', $aArgs['AddressBookId']);
-            if (isset($aArgs['Access'])) {
-                if (is_array($aArgs['Access'])) {
-                    $query->whereIn('access', $aArgs['Access']);
-                } else {
-                    $query->where('access', $aArgs['Access']);
+            $abooks = $query->get();
+
+            $val = null;
+            foreach ($abooks as $abook) {
+                if ($val) {
+                    $iAccess = $val['Access'];
+                    if ($val['GroupId'] === 0 && $iAccess === Access::NoAccess) {
+                        continue;
+                    }
+                    $iNewAccess = $abook->access;
+                    if ((int) $abook->group_id === 0) { //personal sharing
+                        $val['Access'] = $iNewAccess;
+                    } else { // group sharing
+                        if ($iNewAccess !== Access::Read) {
+                            if ($iAccess < $iNewAccess || $iNewAccess === Access::NoAccess) {
+                                $val['Access'] = $iNewAccess;
+                            }
+                        } elseif ($iAccess !== Access::Write) {
+                            $val['Access'] = $iNewAccess;
+                        }
+                    }
                 }
+
+                $val = [
+                    'Access' => (int) $abook->access,
+                    'GroupId' => (int) $abook->group_id
+                ];
             }
-            $mResult = !!$query->first();
-            if ($mResult) {
+            if ($val) {
+                $access = $val['Access'];
+                $mResult = ($access === Access::Write || $access === $aArgs['Access']);
+
                 return true;
             }
         };
