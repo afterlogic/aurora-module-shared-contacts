@@ -328,23 +328,32 @@ class Module extends \Aurora\System\Module\AbstractModule
             $q = Capsule::connection()->table('adav_shared_addressbooks')
                 ->select('addressbook_id')
                 ->from('adav_shared_addressbooks')
-                ->where('principaluri', Constants::PRINCIPALS_PREFIX . $oUser->PublicId);
+                ->leftJoin('adav_addressbooks', 'adav_shared_addressbooks.addressbook_id', '=', 'adav_addressbooks.id')
+                ->where('adav_addressbooks.principaluri', '<>', Constants::PRINCIPALS_PREFIX . $oUser->PublicId)
+                ->where('adav_shared_addressbooks.principaluri', Constants::PRINCIPALS_PREFIX . $oUser->PublicId);
 
             if ($aArgs['Storage'] !== StorageType::All && isset($aArgs['AddressBookId'])) {
                 $q->where('addressbook_id', (int) $aArgs['AddressBookId']);
             }
 
             $ids = $q->pluck('addressbook_id')->all();
+            if ($ids) {
+                $mResult->whereIn('adav_cards.addressbookid', $ids, 'or');
+            }
 
-            $mResult->whereIn('adav_cards.addressbookid', $ids, 'or');
-
-            if (isset($aArgs['Query']) && count($ids) > 0) {
-                $aArgs['Query']->addSelect(Capsule::connection()->raw(
-                    'CASE
-                    WHEN ' . Capsule::connection()->getTablePrefix() . 'adav_cards.addressbookid IN (' . implode(',', $ids) . ') THEN true
-                    ELSE false
-                END as Shared'
-                ));
+            if (isset($aArgs['Query'])) {
+                if ($ids) {
+                    $aArgs['Query']->addSelect(Capsule::connection()->raw(
+                        'CASE
+                        WHEN ' . Capsule::connection()->getTablePrefix() . 'adav_cards.addressbookid IN (' . implode(',', $ids) . ') THEN true
+                        ELSE false
+                    END as Shared'
+                    ));
+                } else {
+                    $aArgs['Query']->addSelect(Capsule::connection()->raw(
+                        'false as Shared'
+                    ));
+                }
             }
         }
     }
