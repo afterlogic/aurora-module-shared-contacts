@@ -11,10 +11,8 @@ use Aurora\Api;
 use Aurora\Modules\Contacts\Enums\Access;
 use Aurora\Modules\Contacts\Enums\SortField;
 use Aurora\Modules\Contacts\Enums\StorageType;
-use Aurora\Modules\Contacts\Models\AddressBook;
-use Aurora\Modules\Contacts\Models\Contact;
+use Aurora\Modules\Contacts\Classes\Contact;
 use Aurora\Modules\Contacts\Module as ContactsModule;
-use Aurora\Modules\Core\Models\Group;
 use Aurora\Modules\Core\Models\User;
 use Aurora\System\Enums\UserRole;
 use Aurora\System\Exceptions\InvalidArgumentException;
@@ -360,26 +358,19 @@ class Module extends \Aurora\System\Module\AbstractModule
 
     public function onAfterUpdateSharedContacts($aArgs, &$mResult)
     {
-        $oContacts = \Aurora\Modules\Contacts\Module::Decorator();
+        $oContacts = ContactsModule::Decorator();
         $aUUIDs = isset($aArgs['UUIDs']) ? $aArgs['UUIDs'] : [];
 
         foreach ($aUUIDs as $sUUID) {
             $oContact = $oContacts->GetContact($sUUID, $aArgs['UserId']);
             if ($oContact instanceof Contact) {
-                $sOldStorage = $oContact->getStorageWithId();
-                $iUserId = -1;
-
                 if ($oContact->Storage === StorageType::Shared) {
                     $oContact->Storage = StorageType::Personal;
-                    $iUserId = $oContact->IdTenant;
                     $oContact->IdUser = $aArgs['UserId'];
                 } elseif ($oContact->Storage === StorageType::Personal) {
                     $oContact->Storage = StorageType::Shared;
-                    $iUserId = $oContact->IdUser;
                 }
-                // update CTag for previous storage
-                \Aurora\Modules\Contacts\Module::getInstance()->getManager()->updateCTag($iUserId, $sOldStorage);
-                $mResult = $oContacts->UpdateContact($aArgs['UserId'], $oContact->toArray());
+                $mResult = $oContacts->UpdateContact($aArgs['UserId'], $oContact->toResponseArray());
             }
         }
     }
@@ -390,13 +381,13 @@ class Module extends \Aurora\System\Module\AbstractModule
         $oContact = isset($aArgs['Contact']) ? $aArgs['Contact'] : null;
         $Access = isset($aArgs['Access']) ? (int) $aArgs['Access'] : null;
 
-        if ($oContact instanceof \Aurora\Modules\Contacts\Models\Contact) {
+        if ($oContact instanceof Contact) {
             if ($oContact->IdUser === $oUser->Id) {
                 $mResult = true;
                 return true; // break other subscriptions
             }
             if ($oContact->Storage === StorageType::Shared) {
-                if ($oUser->Role !== \Aurora\System\Enums\UserRole::SuperAdmin && $oUser->IdTenant !== $oContact->IdTenant) {
+                if ($oUser->Role !== UserRole::SuperAdmin && $oUser->IdTenant !== $oContact->IdTenant) {
                     $mResult = false;
                 } else {
                     $mResult = true;
@@ -444,7 +435,7 @@ class Module extends \Aurora\System\Module\AbstractModule
     public function onGetContactSuggestions(&$aArgs, &$mResult)
     {
         if ($aArgs['Storage'] === 'all' || $aArgs['Storage'] === StorageType::Shared) {
-            $mResult[StorageType::Shared] = \Aurora\Modules\Contacts\Module::Decorator()->GetContacts(
+            $mResult[StorageType::Shared] = ContactsModule::Decorator()->GetContacts(
                 $aArgs['UserId'],
                 StorageType::Shared,
                 0,
@@ -848,7 +839,7 @@ class Module extends \Aurora\System\Module\AbstractModule
                 }
                 $aArgs['Id'] = $iAddressBookId;
             } elseif (isset($aStorageParts[0])) {
-                $storagesMapToAddressbooks = \Aurora\Modules\Contacts\Module::Decorator()->GetStoragesMapToAddressbooks();
+                $storagesMapToAddressbooks = ContactsModule::Decorator()->GetStoragesMapToAddressbooks();
                 if (isset($storagesMapToAddressbooks[$aStorageParts[0]])) {
                     $addressbookUri = $storagesMapToAddressbooks[$aStorageParts[0]];
                     $userPublicId = Api::getUserPublicIdById($aArgs['UserId']);
