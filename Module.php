@@ -6,6 +6,7 @@
 
 namespace Aurora\Modules\SharedContacts;
 
+use Afterlogic\DAV\Backend;
 use Afterlogic\DAV\Constants;
 use Aurora\Api;
 use Aurora\Modules\Contacts\Enums\Access;
@@ -34,6 +35,10 @@ class Module extends \Aurora\System\Module\AbstractModule
     protected static $iStorageOrder = 10;
 
     protected $oBeforeDeleteUser = null;
+
+    protected $storagesMapToAddressbooks = [
+        StorageType::Shared => Constants::ADDRESSBOOK_SHARED_WITH_ALL_NAME
+    ];
 
     public function init()
     {
@@ -64,7 +69,9 @@ class Module extends \Aurora\System\Module\AbstractModule
 
         $this->subscribeEvent(self::GetName() . '::LeaveShare::before', array($this, 'onBeforeUpdateAddressbookShare'));
         $this->subscribeEvent('Contacts::GetContacts::before', array($this, 'populateStorage'));
-
+        $this->subscribeEvent('Contacts::PopulateStorage', array($this, 'populateStorage'));
+        $this->subscribeEvent('Contacts::DeleteContacts::before', array($this, 'onBeforeDeleteContacts'));
+        $this->subscribeEvent('Contacts::GetStoragesMapToAddressbooks::after', array($this, 'onAfterGetStoragesMapToAddressbooks'));
     }
 
     /**
@@ -330,8 +337,16 @@ class Module extends \Aurora\System\Module\AbstractModule
                 ->where('adav_addressbooks.principaluri', '<>', Constants::PRINCIPALS_PREFIX . $oUser->PublicId)
                 ->where('adav_shared_addressbooks.principaluri', Constants::PRINCIPALS_PREFIX . $oUser->PublicId);
 
-            if ($aArgs['Storage'] !== StorageType::All && isset($aArgs['AddressBookId'])) {
-                $q->where('addressbook_id', (int) $aArgs['AddressBookId']);
+            if ($aArgs['Storage'] !== StorageType::All) {
+                if (!isset($aArgs['AddressBookId'])) {
+                    $addressbook = $this->GetSharedWithAllAddressbook($oUser->Id);
+                    if ($addressbook) {
+                        $aArgs['AddressBookId'] = (int) $addressbook['id'];
+                    }
+                }
+                if (isset($aArgs['AddressBookId'])) {
+                    $q->where('addressbook_id', (int) $aArgs['AddressBookId']);
+                }
             }
 
             $ids = $q->pluck('addressbook_id')->all();
@@ -363,6 +378,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 
         foreach ($aUUIDs as $sUUID) {
             $oContact = $oContacts->GetContact($sUUID, $aArgs['UserId']);
+            $FromStorage = $oContact->Storage;
             if ($oContact instanceof Contact) {
                 if ($oContact->Storage === StorageType::Shared) {
                     $oContact->Storage = StorageType::Personal;
@@ -371,6 +387,9 @@ class Module extends \Aurora\System\Module\AbstractModule
                     $oContact->Storage = StorageType::Shared;
                 }
                 $mResult = $oContacts->UpdateContact($aArgs['UserId'], $oContact->toResponseArray());
+                if ($mResult) {
+                    $oContacts->MoveContactsToStorage($aArgs['UserId'], $FromStorage, $oContact->Storage, [$sUUID]);
+                }
             }
         }
     }
@@ -447,6 +466,26 @@ class Module extends \Aurora\System\Module\AbstractModule
         }
     }
 
+    public function GetSharedWithAllAddressbook($UserId)
+    {
+        Api::CheckAccess($UserId);
+
+        $addressbook = false;
+
+        $oUser = Api::getUserById($UserId);
+        if ($oUser) {
+            $sPrincipalUri = Constants::PRINCIPALS_PREFIX . $oUser->IdTenant . '_' . Constants::DAV_TENANT_PRINCIPAL;
+            $addressbook = Backend::Carddav()->getAddressBookForUser($sPrincipalUri, Constants::ADDRESSBOOK_SHARED_WITH_ALL_NAME);
+            if (!$addressbook) {
+                if (Backend::Carddav()->createAddressBook($sPrincipalUri, Constants::ADDRESSBOOK_SHARED_WITH_ALL_NAME, ['{DAV:}displayname' => Constants::ADDRESSBOOK_SHARED_WITH_ALL_DISPLAY_NAME])) {
+                    $addressbook = Backend::Carddav()->getAddressBookForUser($sPrincipalUri, Constants::ADDRESSBOOK_SHARED_WITH_ALL_NAME);
+                }
+            }
+        }
+
+        return $addressbook;
+    }
+
     public function onAfterGetAddressBooks(&$aArgs, &$mResult)
     {
         if (!is_array($mResult)) {
@@ -459,6 +498,22 @@ class Module extends \Aurora\System\Module\AbstractModule
             $mResult,
             $this->GetAddressbooks($aArgs['UserId'])
         );
+
+        $addressbook = $this->GetSharedWithAllAddressbook($aArgs['UserId']);
+        if ($addressbook) {
+            /**
+             * @var array $addressbook
+             */
+            $mResult[] = [
+                'Id' => 'shared',
+                'EntityId' => (int) $addressbook['id'],
+                'CTag' => (int) $addressbook['{http://sabredav.org/ns}sync-token'],
+                'Display' => true,
+                'Order' => 1,
+                'DisplayName' => $addressbook['{DAV:}displayname'],
+                'Uri' => $addressbook['uri']
+            ];
+        }
     }
 
     public function onPopulateContactModel(&$oContact, &$mResult)
@@ -747,6 +802,18 @@ class Module extends \Aurora\System\Module\AbstractModule
                 $q->where('adav_cards.id', $aArgs['UUID']);
             }
         });
+
+        $addressbook = $this->GetSharedWithAllAddressbook($aArgs['UserId']);
+        $query->orWhere(function ($q) use ($addressbook, $aArgs) {
+            $q->where('adav_addressbooks.id', $addressbook['id']);
+            if (is_array($aArgs['UUID'])) {
+                if (count($aArgs['UUID']) > 0) {
+                    $q->whereIn('adav_cards.id', $aArgs['UUID']);
+                }
+            } else {
+                $q->where('adav_cards.id', $aArgs['UUID']);
+            }
+        });
     }
 
     public function onBeforeCreateContact(&$aArgs, &$mResult)
@@ -775,7 +842,22 @@ class Module extends \Aurora\System\Module\AbstractModule
                     $aArgs['Storage'] = $aStorageParts[0];
                     $aArgs['AddressBookId'] = $iAddressBookId;
                 }
+            } else {
+                if ($aStorageParts[0] === StorageType::Shared) {
+                    $abook = $this->GetSharedWithAllAddressbook($aArgs['UserId']);
+                    if ($abook) {
+                        $aArgs['AddressBookId'] = $abook['id'];
+                    }
+                }
             }
+        }
+    }
+
+    public function onBeforeDeleteContacts(&$aArgs, &$mResult)
+    {
+        $this->populateStorage($aArgs);
+        if (isset($aArgs['AddressBookId'])) {
+            $aArgs['Storage'] = $aArgs['AddressBookId'];
         }
     }
 
@@ -820,6 +902,15 @@ class Module extends \Aurora\System\Module\AbstractModule
                 $mResult = ($access === Access::Write || $access === $aArgs['Access']);
 
                 return true;
+            } else {
+                if (isset($aArgs['User'], $aArgs['AddressBookId'])) {
+                    $addressbook = $this->GetSharedWithAllAddressbook($aArgs['User']->Id);
+                    if ($addressbook && $addressbook['id'] == $aArgs['AddressBookId']) {
+                        $mResult = true;
+        
+                        return $mResult;
+                    }
+                }
             }
         };
     }
@@ -855,5 +946,10 @@ class Module extends \Aurora\System\Module\AbstractModule
                 }
             }
         }
+    }
+
+    public function onAfterGetStoragesMapToAddressbooks(&$aArgs, &$mResult)
+    {
+        $mResult = array_merge($mResult, $this->storagesMapToAddressbooks);
     }
 }
