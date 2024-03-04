@@ -378,18 +378,14 @@ class Module extends \Aurora\System\Module\AbstractModule
 
         foreach ($aUUIDs as $sUUID) {
             $oContact = $oContacts->GetContact($sUUID, $aArgs['UserId']);
-            $FromStorage = $oContact->Storage;
             if ($oContact instanceof Contact) {
+                $FromStorage = $oContact->Storage;
                 if ($oContact->Storage === StorageType::Shared) {
-                    $oContact->Storage = StorageType::Personal;
-                    $oContact->IdUser = $aArgs['UserId'];
+                    $ToStorage = StorageType::Personal;
                 } elseif ($oContact->Storage === StorageType::Personal) {
-                    $oContact->Storage = StorageType::Shared;
+                    $ToStorage = StorageType::Shared;
                 }
-                $mResult = $oContacts->UpdateContact($aArgs['UserId'], $oContact->toResponseArray());
-                if ($mResult) {
-                    $oContacts->MoveContactsToStorage($aArgs['UserId'], $FromStorage, $oContact->Storage, [$sUUID]);
-                }
+                $oContacts->MoveContactToStorage($aArgs['UserId'], $FromStorage, $ToStorage, $sUUID);
             }
         }
     }
