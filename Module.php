@@ -904,7 +904,7 @@ class Module extends \Aurora\System\Module\AbstractModule
                     $addressbook = $this->GetSharedWithAllAddressbook($aArgs['User']->Id);
                     if ($addressbook && $addressbook['id'] == $aArgs['AddressBookId']) {
                         $mResult = true;
-        
+
                         return $mResult;
                     }
                 }
