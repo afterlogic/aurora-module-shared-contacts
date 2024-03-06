@@ -380,6 +380,7 @@ class Module extends \Aurora\System\Module\AbstractModule
             $oContact = $oContacts->GetContact($sUUID, $aArgs['UserId']);
             if ($oContact instanceof Contact) {
                 $FromStorage = $oContact->Storage;
+                $ToStorage = $FromStorage;
                 if ($oContact->Storage === StorageType::Shared) {
                     $ToStorage = StorageType::Personal;
                 } elseif ($oContact->Storage === StorageType::Personal) {
