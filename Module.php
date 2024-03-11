@@ -386,7 +386,7 @@ class Module extends \Aurora\System\Module\AbstractModule
                 } elseif ($oContact->Storage === StorageType::Personal) {
                     $ToStorage = StorageType::Shared;
                 }
-                $oContacts->MoveContactToStorage($aArgs['UserId'], $FromStorage, $ToStorage, $sUUID);
+                $oContacts->MoveContactsToStorage($aArgs['UserId'], $FromStorage, $ToStorage, [$sUUID]);
             }
         }
     }
