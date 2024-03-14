@@ -792,9 +792,11 @@ class Module extends \Aurora\System\Module\AbstractModule
         $query->orWhere(function ($q) use ($userPublicId, $aArgs) {
             $q->where('adav_shared_addressbooks.principaluri', Constants::PRINCIPALS_PREFIX . $userPublicId);
             if (is_array($aArgs['UUID'])) {
-                if (count($aArgs['UUID']) > 0) {
-                    $q->whereIn('adav_cards.id', $aArgs['UUID']);
+                $ids = $aArgs['UUID'];
+                if (count($aArgs['UUID']) === 0) {
+                    $ids = [null];
                 }
+                $q->whereIn('adav_cards.id', $ids);
             } else {
                 $q->where('adav_cards.id', $aArgs['UUID']);
             }
