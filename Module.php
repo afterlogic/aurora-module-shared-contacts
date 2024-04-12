@@ -42,15 +42,28 @@ class Module extends \Aurora\System\Module\AbstractModule
 
     public function init()
     {
-        $this->subscribeEvent('Contacts::GetStorages', array($this, 'onGetStorages'));
         $this->subscribeEvent('Contacts::PrepareFiltersFromStorage', array($this, 'onPrepareFiltersFromStorage'));
-
         $this->subscribeEvent('Contacts::UpdateSharedContacts::after', array($this, 'onAfterUpdateSharedContacts'));
 
         $this->subscribeEvent('Contacts::CheckAccessToObject::after', array($this, 'onAfterCheckAccessToObject'));
         $this->subscribeEvent('Contacts::GetContactSuggestions', array($this, 'onGetContactSuggestions'));
         $this->subscribeEvent('Contacts::GetAddressBooks::after', array($this, 'onAfterGetAddressBooks'), 1000);
-        $this->subscribeEvent('Contacts::PopulateContactModel', array($this, 'onPopulateContactModel'));
+        // $this->subscribeEvent('Contacts::PopulateContactModel', array($this, 'onPopulateContactModel'));
+
+        $this->subscribeEvent('Contacts::ContactQueryBuilder', array($this, 'onContactQueryBuilder'));
+        $this->subscribeEvent('Contacts::CreateContact::before', array($this, 'onBeforeCreateContact'));
+        $this->subscribeEvent('Contacts::CheckAccessToAddressBook::after', array($this, 'onAfterCheckAccessToAddressBook'));
+
+        $this->subscribeEvent(self::GetName() . '::UpdateAddressbookShare::before', array($this, 'onBeforeUpdateAddressbookShare'));
+        $this->subscribeEvent(self::GetName() . '::GetSharesForAddressbook::before', array($this, 'onBeforeUpdateAddressbookShare'));
+        $this->subscribeEvent(self::GetName() . '::LeaveShare::before', array($this, 'onBeforeUpdateAddressbookShare'));
+
+        $this->subscribeEvent('Contacts::GetContacts::before', array($this, 'populateStorage'));
+        $this->subscribeEvent('Contacts::GetContacts::after', array($this, 'onGetContacts'));
+        $this->subscribeEvent('Contacts::GetContactsByUids::after', array($this, 'onGetContactsByUids'));
+        $this->subscribeEvent('Contacts::PopulateStorage', array($this, 'populateStorage'));
+        $this->subscribeEvent('Contacts::DeleteContacts::before', array($this, 'onBeforeDeleteContacts'));
+        $this->subscribeEvent('Contacts::GetStoragesMapToAddressbooks::after', array($this, 'onAfterGetStoragesMapToAddressbooks'));
 
         $this->subscribeEvent('Core::AddUsersToGroup::after', [$this, 'onAfterAddUsersToGroup']);
         $this->subscribeEvent('Core::RemoveUsersFromGroup::after', [$this, 'onAfterRemoveUsersFromGroup']);
@@ -59,19 +72,6 @@ class Module extends \Aurora\System\Module\AbstractModule
         $this->subscribeEvent('Core::DeleteUser::before', [$this, 'onBeforeDeleteUser']);
         $this->subscribeEvent('Core::DeleteUser::after', [$this, 'onAfterDeleteUser']);
         $this->subscribeEvent('Core::DeleteGroup::after', [$this, 'onAfterDeleteGroup']);
-
-        $this->subscribeEvent('Contacts::ContactQueryBuilder', array($this, 'onContactQueryBuilder'));
-        $this->subscribeEvent('Contacts::CreateContact::before', array($this, 'onBeforeCreateContact'));
-        $this->subscribeEvent('Contacts::CheckAccessToAddressBook::after', array($this, 'onAfterCheckAccessToAddressBook'));
-
-        $this->subscribeEvent(self::GetName() . '::UpdateAddressbookShare::before', array($this, 'onBeforeUpdateAddressbookShare'));
-        $this->subscribeEvent(self::GetName() . '::GetSharesForAddressbook::before', array($this, 'onBeforeUpdateAddressbookShare'));
-
-        $this->subscribeEvent(self::GetName() . '::LeaveShare::before', array($this, 'onBeforeUpdateAddressbookShare'));
-        $this->subscribeEvent('Contacts::GetContacts::before', array($this, 'populateStorage'));
-        $this->subscribeEvent('Contacts::PopulateStorage', array($this, 'populateStorage'));
-        $this->subscribeEvent('Contacts::DeleteContacts::before', array($this, 'onBeforeDeleteContacts'));
-        $this->subscribeEvent('Contacts::GetStoragesMapToAddressbooks::after', array($this, 'onAfterGetStoragesMapToAddressbooks'));
     }
 
     /**
@@ -319,11 +319,6 @@ class Module extends \Aurora\System\Module\AbstractModule
         }
     }
 
-    public function onGetStorages(&$aStorages)
-    {
-        // $aStorages[self::$iStorageOrder] = StorageType::Shared;
-    }
-
     public function onPrepareFiltersFromStorage(&$aArgs, &$mResult)
     {
         if (isset($aArgs['Storage']) && $aArgs['Storage'] === StorageType::Shared || $aArgs['Storage'] === StorageType::All) {
@@ -463,6 +458,50 @@ class Module extends \Aurora\System\Module\AbstractModule
         }
     }
 
+    /**
+     * The methods corrects the storage type of contacts related to the shared addressbooks.
+     */
+    public function onGetContacts(&$aArgs, &$mResult)
+    {
+        if ($aArgs['Storage'] === 'all' || $aArgs['Storage'] === StorageType::Shared) {
+            $aSharedBooks = $this->GetAddressbooks($aArgs['UserId']);
+            foreach ($mResult['List'] as &$aContact) {
+                $aStorageParts = explode('-', $aContact['Storage']);
+                // only personal and custom addressbooks can be shared
+                if (in_array($aStorageParts[0], [ StorageType::Personal,StorageType::AddressBook ])) {
+                    foreach ($aSharedBooks as $aBook) {
+                        // check if contact's addressbook exist in list of shared with user addressbooks
+                        if ($aBook['EntityId'] === $aContact['AddressBookId']) {
+                            $aContact['Storage'] = StorageType::Shared . '-' . $aContact['AddressBookId'];
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * The methods corrects the storage type of contacts related to the shared addressbooks.
+     */
+    public function onGetContactsByUids(&$aArgs, &$mResult)
+    {
+        if (is_array($mResult)) {
+            $aSharedBooks = $this->GetAddressbooks($aArgs['UserId']);
+            foreach ($mResult as &$aContact) {
+                $aStorageParts = explode('-', $aContact['Storage']);
+                // only personal and custom addressbooks can be shared
+                if (in_array($aStorageParts[0], [ StorageType::Personal, StorageType::AddressBook ])) {
+                    foreach ($aSharedBooks as $aBook) {
+                        // check if contact's addressbook exist in list of shared with user addressbooks
+                        if ($aBook['EntityId'] === $aContact['AddressBookId']) {
+                            $aContact['Storage'] = StorageType::Shared . '-' . $aContact['AddressBookId'];
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     public function GetSharedWithAllAddressbook($UserId)
     {
         Api::CheckAccess($UserId);
@@ -513,28 +552,29 @@ class Module extends \Aurora\System\Module\AbstractModule
         }
     }
 
-    public function onPopulateContactModel(&$oContact, &$mResult)
-    {
-        if ($oContact instanceof Contact) {
-            $aStorageParts = \explode('-', $oContact->Storage);
-            if (is_array($aStorageParts) && count($aStorageParts) === 3 && $aStorageParts[0] === StorageType::Shared) {
-                $abooks = $this->GetAddressbooks($oContact->IdUser);
-                foreach ($abooks as $abook) {
-                    if ($abook['Id'] === $oContact->Storage) {
-                        if ($aStorageParts[2] === StorageType::Personal) {
-                            $oContact->Storage = StorageType::Personal;
-                        } else {
-                            $oContact->Storage = StorageType::AddressBook;
-                            $oContact->AddressBookId = (int) $aStorageParts[2];
-                        }
+    // @todo: it doesn't work because addressbook id never has 3 parts
+    // public function onPopulateContactModel(&$oContact, &$mResult)
+    // {
+    //     if ($oContact instanceof Contact) {
+    //         $aStorageParts = \explode('-', $oContact->Storage);
+    //         if (is_array($aStorageParts) && count($aStorageParts) === 3 && $aStorageParts[0] === StorageType::Shared) {
+    //             $abooks = $this->GetAddressbooks($oContact->IdUser);
+    //             foreach ($abooks as $abook) {
+    //                 if ($abook['Id'] === $oContact->Storage) {
+    //                     if ($aStorageParts[2] === StorageType::Personal) {
+    //                         $oContact->Storage = StorageType::Personal;
+    //                     } else {
+    //                         $oContact->Storage = StorageType::AddressBook;
+    //                         $oContact->AddressBookId = (int) $aStorageParts[2];
+    //                     }
 
-                        $oContact->IdUser = (int) $aStorageParts[1];
-                        break;
-                    }
-                }
-            }
-        }
-    }
+    //                     $oContact->IdUser = (int) $aStorageParts[1];
+    //                     break;
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 
     public function UpdateAddressbookShare($UserId, $Id, $Shares)
     {
