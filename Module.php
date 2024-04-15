@@ -322,30 +322,29 @@ class Module extends \Aurora\System\Module\AbstractModule
 
     public function onPrepareFiltersFromStorage(&$aArgs, &$mResult)
     {
-        if (isset($aArgs['Storage']) && $aArgs['Storage'] === StorageType::Shared || $aArgs['Storage'] === StorageType::All) {
+        if (isset($aArgs['Storage']) && ($aArgs['Storage'] === StorageType::Shared || $aArgs['Storage'] === StorageType::All)) {
             $oUser = Api::getUserById($aArgs['UserId']);
             $aArgs['IsValid'] = true;
 
-            $q = Capsule::connection()->table('adav_shared_addressbooks')
+            $query = Capsule::connection()->table('adav_shared_addressbooks')
                 ->select('addressbook_id')
                 ->from('adav_shared_addressbooks')
                 ->leftJoin('adav_addressbooks', 'adav_shared_addressbooks.addressbook_id', '=', 'adav_addressbooks.id')
                 ->where('adav_addressbooks.principaluri', '<>', Constants::PRINCIPALS_PREFIX . $oUser->PublicId)
                 ->where('adav_shared_addressbooks.principaluri', Constants::PRINCIPALS_PREFIX . $oUser->PublicId);
 
-            if ($aArgs['Storage'] !== StorageType::All) {
-                if (!isset($aArgs['AddressBookId'])) {
-                    $addressbook = $this->GetSharedWithAllAddressbook($oUser->Id);
-                    if ($addressbook) {
-                        $aArgs['AddressBookId'] = (int) $addressbook['id'];
-                    }
-                }
-                if (isset($aArgs['AddressBookId'])) {
-                    $q->where('addressbook_id', (int) $aArgs['AddressBookId']);
+            if ($aArgs['Storage'] === StorageType::Shared && isset($aArgs['AddressBookId'])) {
+                $query->where('addressbook_id', (int) $aArgs['AddressBookId']);
+            }
+            $ids = $query->pluck('addressbook_id')->all();
+
+            if ($aArgs['Storage'] === StorageType::All && !isset($aArgs['AddressBookId'])) {
+                $addressbook = $this->GetSharedWithAllAddressbook($oUser->Id);
+                if ($addressbook) {
+                    $ids[] = (int) $addressbook['id'];
                 }
             }
 
-            $ids = $q->pluck('addressbook_id')->all();
             if ($ids) {
                 $mResult->whereIn('adav_cards.addressbookid', $ids, 'or');
             }
