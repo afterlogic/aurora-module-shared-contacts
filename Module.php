@@ -761,7 +761,7 @@ class Module extends \Aurora\System\Module\AbstractModule
     public function onAfterUpdateUser($aArgs, &$mResult)
     {
         if ($mResult) {
-            $groupIds = $aArgs['GroupIds'];
+            $groupIds = $aArgs['GroupIds'] ?? null;
             $userId = $aArgs['UserId'];
 
             if ($groupIds !== null) {
