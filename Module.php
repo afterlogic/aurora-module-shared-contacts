@@ -338,7 +338,7 @@ class Module extends \Aurora\System\Module\AbstractModule
             }
             $ids = $query->pluck('addressbook_id')->all();
 
-            if ($aArgs['Storage'] === StorageType::All && !isset($aArgs['AddressBookId'])) {
+            if ($aArgs['Storage'] === StorageType::All && empty($aArgs['AddressBookId'])) {
                 $addressbook = $this->GetSharedWithAllAddressbook($oUser->Id);
                 if ($addressbook) {
                     $ids[] = (int) $addressbook['id'];
