@@ -162,7 +162,7 @@ class Module extends \Aurora\System\Module\AbstractModule
                     'Order' => 1,
                     'DisplayName' => $abook['displayname'] . ' (' . basename($abook['principaluri']) . ')',
                     'Uri' => $abook['addressbookuri'],
-                    'Url' => 'contacts/' . $abook['addressbookuri'],
+                    'Url' => 'addressbooks/' . $abook['addressbookuri'],
                     'Shared' => true,
                     'Access' => (int) $abook['access'],
                     'Owner' => basename($abook['principaluri']),
@@ -548,7 +548,7 @@ class Module extends \Aurora\System\Module\AbstractModule
                 'Order' => 1,
                 'DisplayName' => $addressbook['{DAV:}displayname'],
                 'Uri' => $addressbook['uri'],
-                'Url' => 'contacts/' . $addressbook['uri'],
+                'Url' => 'addressbooks/' . $addressbook['uri'],
             ];
         }
     }
