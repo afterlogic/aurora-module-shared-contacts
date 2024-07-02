@@ -58,10 +58,10 @@ class Module extends \Aurora\System\Module\AbstractModule
         $this->subscribeEvent(self::GetName() . '::GetSharesForAddressbook::before', array($this, 'onBeforeUpdateAddressbookShare'));
         $this->subscribeEvent(self::GetName() . '::LeaveShare::before', array($this, 'onBeforeUpdateAddressbookShare'));
 
-        $this->subscribeEvent('Contacts::GetContacts::before', array($this, 'populateStorage'));
+        $this->subscribeEvent('Contacts::GetContacts::before', array($this, 'populateContactArguments'));
         $this->subscribeEvent('Contacts::GetContacts::after', array($this, 'onGetContacts'));
         $this->subscribeEvent('Contacts::GetContactsByUids::after', array($this, 'onGetContactsByUids'));
-        $this->subscribeEvent('Contacts::PopulateStorage', array($this, 'populateStorage'));
+        $this->subscribeEvent('Contacts::PopulateContactArguments', array($this, 'populateContactArguments'));
         $this->subscribeEvent('Contacts::DeleteContacts::before', array($this, 'onBeforeDeleteContacts'));
         $this->subscribeEvent('Contacts::GetStoragesMapToAddressbooks::after', array($this, 'onAfterGetStoragesMapToAddressbooks'));
 
@@ -862,14 +862,14 @@ class Module extends \Aurora\System\Module\AbstractModule
             if (isset($aArgs['UserId'])) {
                 $aArgs['Contact']['UserId'] = $aArgs['UserId'];
             }
-            $this->populateStorage($aArgs['Contact']);
+            $this->populateContactArguments($aArgs['Contact'], $mResult);
         }
     }
 
     /**
      *
      */
-    public function populateStorage(&$aArgs)
+    public function populateContactArguments(&$aArgs, &$mResult)
     {
         if (isset($aArgs['Storage'], $aArgs['UserId'])) {
             $aStorageParts = \explode('-', $aArgs['Storage']);
@@ -881,12 +881,16 @@ class Module extends \Aurora\System\Module\AbstractModule
                     }
                     $aArgs['Storage'] = $aStorageParts[0];
                     $aArgs['AddressBookId'] = $iAddressBookId;
+
+                    $mResult = true;
                 }
             } else {
                 if ($aStorageParts[0] === StorageType::Shared) {
                     $abook = $this->GetSharedWithAllAddressbook($aArgs['UserId']);
                     if ($abook) {
                         $aArgs['AddressBookId'] = $abook['id'];
+
+                        $mResult = true;
                     }
                 }
             }
@@ -895,7 +899,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 
     public function onBeforeDeleteContacts(&$aArgs, &$mResult)
     {
-        $this->populateStorage($aArgs);
+        $this->populateContactArguments($aArgs, $mResult);
         if (isset($aArgs['AddressBookId'])) {
             $aArgs['Storage'] = $aArgs['AddressBookId'];
         }
