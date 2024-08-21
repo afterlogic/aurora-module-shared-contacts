@@ -64,6 +64,7 @@ class Module extends \Aurora\System\Module\AbstractModule
         $this->subscribeEvent('Contacts::PopulateContactArguments', array($this, 'populateContactArguments'));
         $this->subscribeEvent('Contacts::DeleteContacts::before', array($this, 'onBeforeDeleteContacts'));
         $this->subscribeEvent('Contacts::GetStoragesMapToAddressbooks::after', array($this, 'onAfterGetStoragesMapToAddressbooks'));
+        $this->subscribeEvent('Contacts::Export::before', array($this, 'populateContactArguments'));
 
         $this->subscribeEvent('Core::AddUsersToGroup::after', [$this, 'onAfterAddUsersToGroup']);
         $this->subscribeEvent('Core::RemoveUsersFromGroup::after', [$this, 'onAfterRemoveUsersFromGroup']);
