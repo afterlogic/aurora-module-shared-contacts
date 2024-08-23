@@ -59,6 +59,7 @@ class Module extends \Aurora\System\Module\AbstractModule
         $this->subscribeEvent(self::GetName() . '::LeaveShare::before', array($this, 'onBeforeUpdateAddressbookShare'));
 
         $this->subscribeEvent('Contacts::GetContacts::before', array($this, 'populateContactArguments'));
+        $this->subscribeEvent('Contacts::GetContactsByEmails::before', array($this, 'populateContactArguments'));
         $this->subscribeEvent('Contacts::GetContacts::after', array($this, 'onGetContacts'));
         $this->subscribeEvent('Contacts::GetContactsByUids::after', array($this, 'onGetContactsByUids'));
         $this->subscribeEvent('Contacts::PopulateContactArguments', array($this, 'populateContactArguments'));
