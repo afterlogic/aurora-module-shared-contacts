@@ -818,6 +818,9 @@ class Module extends \Aurora\System\Module\AbstractModule
 
             if (count($principals) > 0) {
                 $dBPrefix = Api::GetSettings()->DBPrefix;
+                $principals = array_map(function ($principal) {
+                    return \Illuminate\Support\Str::padBoth($principal, strlen($principal) + 2, "'");
+                }, $principals);
                 $stmt = Api::GetPDO()->prepare("delete from " . $dBPrefix . "adav_shared_addressbooks where principaluri in (" . \implode(',', $principals) . ") and group_id = ?");
                 $stmt->execute([$aArgs['GroupId']]);
             }
