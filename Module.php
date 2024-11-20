@@ -191,7 +191,7 @@ class Module extends \Aurora\System\Module\AbstractModule
             foreach ($shares as $share) {
                 if ($share['group_id'] != 0) {
                     if (!in_array($share['group_id'], $groups)) {
-                        $oGroup = CoreModule::Decorator()->GetGroup($oUser->IdTenant, (int) $share['group_id']);
+                        $oGroup = CoreModule::Decorator()->GetGroup((int) $share['group_id']);
                         if ($oGroup) {
                             $groups[] = $share['group_id'];
                             $aResult[] = [
