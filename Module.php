@@ -407,22 +407,17 @@ class Module extends \Aurora\System\Module\AbstractModule
                 }
             } elseif ($oContact->Storage === StorageType::Personal || $oContact->Storage === StorageType::AddressBook) {
                 $dBPrefix = Api::GetSettings()->DBPrefix;
-                $sql = "select ab.*, sab.access, ca.Id as addressbook_id, cu.Id as UserId from " . $dBPrefix . "adav_shared_addressbooks sab 
+                $sql = "select ab.*, sab.access, ab.id as addressbook_id, cu.Id as UserId from " . $dBPrefix . "adav_shared_addressbooks sab 
 				left join " . $dBPrefix . "adav_addressbooks ab on sab.addressbook_id = ab.id
 					left join " . $dBPrefix . "core_users cu on ab.principaluri = CONCAT('principals/', cu.PublicId)
-						left join " . $dBPrefix . "contacts_addressbooks ca on ca.UUID = ab.uri
-							where sab.principaluri = ? and cu.Id = ?";
-                if ($oContact->Storage === StorageType::AddressBook) {
-                    $sql .= ' and ca.Id = ' . $oContact->AddressBookId;
-                } elseif ($oContact->Storage === StorageType::Personal) {
-                    $sql .= ' and ca.Id is null';
-                }
+						where sab.principaluri = ? and cu.Id = ? and ab.id = ?";
 
                 $stmt = Api::GetPDO()->prepare($sql);
 
                 $stmt->execute([
                     Constants::PRINCIPALS_PREFIX . $oUser->PublicId,
-                    $oContact->IdUser
+                    $oContact->IdUser,
+                    $oContact->AddressBookId
                 ]);
 
                 $abook = $stmt->fetch(\PDO::FETCH_ASSOC);
