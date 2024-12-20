@@ -484,14 +484,14 @@ class Module extends \Aurora\System\Module\AbstractModule
     {
         if (is_array($mResult)) {
             $aSharedBooks = $this->GetAddressbooks($aArgs['UserId']);
-            foreach ($mResult as &$aContact) {
-                $aStorageParts = explode('-', $aContact['Storage']);
+            foreach ($mResult as &$oContact) {
+                $aStorageParts = explode('-', $oContact->Storage);
                 // only personal and custom addressbooks can be shared
                 if (in_array($aStorageParts[0], [ StorageType::Personal, StorageType::AddressBook ])) {
                     foreach ($aSharedBooks as $aBook) {
                         // check if contact's addressbook exist in list of shared with user addressbooks
-                        if ($aBook['EntityId'] === $aContact['AddressBookId']) {
-                            $aContact['Storage'] = StorageType::Shared . '-' . $aContact['AddressBookId'];
+                        if ($aBook['EntityId'] === $oContact->AddressBookId) {
+                            $oContact->Storage = StorageType::Shared . '-' . $oContact->AddressBookId;
                         }
                     }
                 }
