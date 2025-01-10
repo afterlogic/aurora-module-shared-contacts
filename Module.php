@@ -353,7 +353,8 @@ class Module extends \Aurora\System\Module\AbstractModule
 
             if (isset($aArgs['Query'])) {
                 if ($ids) {
-                    $aArgs['Query']->addSelect(Capsule::connection()->raw('
+                    $aArgs['Query']->addSelect(Capsule::connection()->raw(
+                        '
                     CASE
                         WHEN ' . Capsule::connection()->getTablePrefix() . 'adav_cards.addressbookid IN (' . implode(',', $ids) . ') THEN true
                         ELSE false
@@ -400,11 +401,13 @@ class Module extends \Aurora\System\Module\AbstractModule
                 return true; // break other subscriptions
             }
             if ($oContact->Storage === StorageType::Shared) {
-                if ($oUser->Role !== UserRole::SuperAdmin && $oUser->IdTenant !== $oContact->IdTenant) {
-                    $mResult = false;
-                } else {
+                $sharedWithAllAddressBook = self::Decorator()->GetSharedWithAllAddressbook($oUser->Id);
+                if ($oUser->Role === UserRole::SuperAdmin || ($sharedWithAllAddressBook && $oContact->AddressBookId == $sharedWithAllAddressBook['id'])) {
                     $mResult = true;
+                } else {
+                    $mResult = false;
                 }
+                return true; // break other subscriptions
             } elseif ($oContact->Storage === StorageType::Personal || $oContact->Storage === StorageType::AddressBook) {
                 $dBPrefix = Api::GetSettings()->DBPrefix;
                 $sql = "select ab.*, sab.access, ab.id as addressbook_id, cu.Id as UserId from " . $dBPrefix . "adav_shared_addressbooks sab 
