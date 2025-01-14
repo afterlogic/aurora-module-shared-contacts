@@ -844,6 +844,7 @@ class Module extends \Aurora\System\Module\AbstractModule
             } else {
                 $q->where('adav_cards.id', $aArgs['UUID']);
             }
+            $q->where('adav_shared_addressbooks.access', '<>', 0);
         });
 
         $addressbook = $this->GetSharedWithAllAddressbook($aArgs['UserId']);
