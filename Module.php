@@ -262,7 +262,8 @@ class Module extends \Aurora\System\Module\AbstractModule
         $sharesIds = [];
         foreach ($publicIds as $publicId) {
             $publicId = \json_decode($publicId);
-            $shares = $this->getShareForAddressbook($userId, $abookComplexId, Constants::PRINCIPALS_PREFIX . $publicId[0], $publicId[1]);
+            $principaluri = $publicId[0] ? Constants::PRINCIPALS_PREFIX . $publicId[0] : '';
+            $shares = $this->getShareForAddressbook($userId, $abookComplexId, $principaluri, $publicId[1]);
             if (is_array($shares) && count($shares) > 0) {
                 $ids = array_map(function ($share) {
                     return $share['id'];
@@ -304,7 +305,8 @@ class Module extends \Aurora\System\Module\AbstractModule
             $stmt = Api::GetPDO()->prepare("insert into " . $dBPrefix . "adav_shared_addressbooks
 			(principaluri, access, addressbook_id, addressbookuri, group_id)
 			values (?, ?, ?, ?, ?)");
-            $stmt->execute([Constants::PRINCIPALS_PREFIX . $shareePublicId, $access, $book['id'], UUIDUtil::getUUID(), $groupId]);
+            $principaluri = $shareePublicId ? Constants::PRINCIPALS_PREFIX . $shareePublicId : '';
+            $stmt->execute([$principaluri, $access, $book['id'], UUIDUtil::getUUID(), $groupId]);
         }
     }
 
@@ -596,6 +598,11 @@ class Module extends \Aurora\System\Module\AbstractModule
             foreach ($Shares as $share) {
                 if (isset($share['GroupId'])) {
                     $aUsers = CoreModule::Decorator()->GetGroupUsers($oUser->IdTenant, (int) $share['GroupId']);
+                    $newABookShares[] = [
+                        'PublicId' => '',
+                        'Access' => (int) $share['Access'],
+                        'GroupId' => (int) $share['GroupId'],
+                    ];
                     foreach ($aUsers as $aUser) {
                         $newABookShares[] = [
                             'PublicId' => $aUser['PublicId'],
