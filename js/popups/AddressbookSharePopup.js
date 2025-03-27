@@ -199,7 +199,8 @@ CAddressbookSharePopup.prototype.autocompleteCallback = function (request, respo
 			storage: 'team',
 			addContactGroups: false,
 			addUserGroups: true,
-			exceptEmail: owner
+			exceptEmail: owner,
+			withoutEmptyEmails: false,
 		},
 		autocompleteCallback = ModulesManager.run(
 			'ContactsWebclient', 'getSuggestionsAutocompleteCallback', [suggestParameters]
