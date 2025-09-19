@@ -8,7 +8,7 @@
 			<div class="fieldset">
 				<div class="row row_new_share" data-bind="css: { 'filled': !!selectedTeammateEmail() }">
 					<input class="input" spellcheck="false" type="text"
-						data-bind="valueUpdate: ['blur', 'afterkeydown'], initDom: selectedTeammateDom, value: selectedTeammateEmail,
+						data-bind="valueUpdate: ['blur', 'afterkeydown', 'input'], initDom: selectedTeammateDom, value: selectedTeammateEmail,
 						autocompleteSimple: {callback: autocompleteCallback.bind($data), dataAccessor: selectedTeammateData}" />
 					<span class="placeholder" data-bind="i18n: {'key': '%MODULENAME%/LABEL_EMAIL_ADDRESS_OR_NAME'}"></span>
 					<div class="new_share_access_select" data-bind="click: selectAccess, initDom: selectAccessDom">
