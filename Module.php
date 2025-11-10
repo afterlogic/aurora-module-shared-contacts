@@ -222,7 +222,7 @@ class Module extends \Aurora\System\Module\AbstractModule
         $stmt = Api::GetPDO()->prepare("
 		select sab.* from " . $dBPrefix . "adav_shared_addressbooks sab 
 		left join " . $dBPrefix . "adav_addressbooks ab on sab.addressbook_id = ab.id
-			left join " . $dBPrefix . "core_users cu on ab.principaluri = CONCAT('principals/', cu.PublicId)
+			left join " . $dBPrefix . "core_users cu on ab.principal_email = cu.PublicId
 				where cu.Id = ? AND ab.id = ?
 		");
 
@@ -241,7 +241,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 		select sab.*
 		from " . $dBPrefix . "adav_shared_addressbooks sab 
 		left join " . $dBPrefix . "adav_addressbooks ab on sab.addressbook_id = ab.id
-			left join " . $dBPrefix . "core_users cu on ab.principaluri = CONCAT('principals/', cu.PublicId)
+			left join " . $dBPrefix . "core_users cu on ab.principal_email = cu.PublicId
 				where cu.Id = ? and sab.principaluri = ? and sab.group_id = ? and ab.id = ?
 		");
 
@@ -414,7 +414,7 @@ class Module extends \Aurora\System\Module\AbstractModule
                 $dBPrefix = Api::GetSettings()->DBPrefix;
                 $sql = "select ab.*, sab.access, ab.id as addressbook_id, cu.Id as UserId from " . $dBPrefix . "adav_shared_addressbooks sab 
 				left join " . $dBPrefix . "adav_addressbooks ab on sab.addressbook_id = ab.id
-					left join " . $dBPrefix . "core_users cu on ab.principaluri = CONCAT('principals/', cu.PublicId)
+					left join " . $dBPrefix . "core_users cu on ab.principal_email = cu.PublicId
 						where sab.principaluri = ? and cu.Id = ? and ab.id = ?";
 
                 $stmt = Api::GetPDO()->prepare($sql);
