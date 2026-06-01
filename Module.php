@@ -836,12 +836,16 @@ class Module extends \Aurora\System\Module\AbstractModule
     public function onContactQueryBuilder(&$aArgs, &$query)
     {
         $userPublicId = Api::getUserPublicIdById($aArgs['UserId']);
+        $principalUri = Constants::PRINCIPALS_PREFIX . $userPublicId;
 
-        if (isset($aArgs['Query'])) {
-            $aArgs['Query']->leftJoin('adav_shared_addressbooks', 'adav_cards.addressbookid', '=', 'adav_shared_addressbooks.addressbook_id');
-        }
-        $query->orWhere(function ($q) use ($userPublicId, $aArgs) {
-            $q->where('adav_shared_addressbooks.principaluri', Constants::PRINCIPALS_PREFIX . $userPublicId);
+        $query->orWhere(function ($q) use ($principalUri, $aArgs) {
+            $q->whereExists(function ($sub) use ($principalUri) {
+                $sub->select(Capsule::connection()->raw(1))
+                    ->from('adav_shared_addressbooks')
+                    ->whereColumn('adav_shared_addressbooks.addressbook_id', 'adav_cards.addressbookid')
+                    ->where('adav_shared_addressbooks.principaluri', $principalUri)
+                    ->where('adav_shared_addressbooks.access', '<>', 0);
+            });
             if (is_array($aArgs['UUID'])) {
                 $ids = $aArgs['UUID'];
                 if (count($aArgs['UUID']) === 0) {
@@ -851,7 +855,6 @@ class Module extends \Aurora\System\Module\AbstractModule
             } else {
                 $q->where('adav_cards.id', $aArgs['UUID']);
             }
-            $q->where('adav_shared_addressbooks.access', '<>', 0);
         });
 
         $addressbook = $this->GetSharedWithAllAddressbook($aArgs['UserId']);
