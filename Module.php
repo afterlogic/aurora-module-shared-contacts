@@ -46,7 +46,6 @@ class Module extends \Aurora\System\Module\AbstractModule
         $this->subscribeEvent('Contacts::UpdateSharedContacts::after', array($this, 'onAfterUpdateSharedContacts'));
 
         $this->subscribeEvent('Contacts::CheckAccessToObject::after', array($this, 'onAfterCheckAccessToObject'));
-        $this->subscribeEvent('Contacts::GetContactSuggestions', array($this, 'onGetContactSuggestions'));
         $this->subscribeEvent('Contacts::GetAddressBooks::after', array($this, 'onAfterGetAddressBooks'), 1000);
         // $this->subscribeEvent('Contacts::PopulateContactModel', array($this, 'onPopulateContactModel'));
 
@@ -451,20 +450,6 @@ class Module extends \Aurora\System\Module\AbstractModule
         }
     }
 
-    public function onGetContactSuggestions(&$aArgs, &$mResult)
-    {
-        if ($aArgs['Storage'] === 'all' || $aArgs['Storage'] === StorageType::Shared) {
-            $mResult[StorageType::Shared] = ContactsModule::Decorator()->GetContacts(
-                $aArgs['UserId'],
-                StorageType::Shared,
-                0,
-                $aArgs['Limit'],
-                $aArgs['SortField'],
-                $aArgs['SortOrder'],
-                $aArgs['Search']
-            );
-        }
-    }
 
     /**
      * The methods corrects the storage type of contacts related to the shared addressbooks.
