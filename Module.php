@@ -323,8 +323,8 @@ class Module extends \Aurora\System\Module\AbstractModule
 
             $principalUri = Constants::PRINCIPALS_PREFIX . $oUser->PublicId;
 
-            // The ids have to be literal: with a subquery inside the OR the optimizer can't use
-            // the addressbookid index and scans all contacts of all users
+            // The ids have to be literal and the filter has to be on contacts_cards: this way the
+            // optimizer uses its AddressBookId index and reads adav_cards only for the found contacts
             $query = Capsule::connection()->table('adav_shared_addressbooks')
                 ->leftJoin('adav_addressbooks', 'adav_shared_addressbooks.addressbook_id', '=', 'adav_addressbooks.id')
                 ->where('adav_addressbooks.principaluri', '<>', $principalUri)
@@ -346,7 +346,7 @@ class Module extends \Aurora\System\Module\AbstractModule
             }
 
             // Also needed for an empty list: without any condition the query would return all contacts
-            $mResult->orWhereIn('adav_cards.addressbookid', $ids);
+            $mResult->orWhereIn('contacts_cards.AddressBookId', $ids);
 
             if (isset($aArgs['Query'])) {
                 $sharedSelect = 'false as Shared';

@@ -56,6 +56,12 @@ class PrepareFiltersFromStorageTest extends TestCase
             $table->integer('addressbookid');
         });
 
+        $capsule->schema()->create('contacts_cards', function ($table) {
+            $table->increments('Id');
+            $table->integer('CardId');
+            $table->integer('AddressBookId');
+        });
+
         Capsule::table('adav_addressbooks')->insert([
             ['id' => 1, 'principaluri' => 'principals/user@example.com'],
             ['id' => 2, 'principaluri' => 'principals/owner@example.com'],
@@ -72,6 +78,12 @@ class PrepareFiltersFromStorageTest extends TestCase
             ['id' => 20, 'addressbookid' => 2],
             ['id' => 30, 'addressbookid' => 3],
             ['id' => 40, 'addressbookid' => 4],
+        ]);
+        Capsule::table('contacts_cards')->insert([
+            ['CardId' => 10, 'AddressBookId' => 1],
+            ['CardId' => 20, 'AddressBookId' => 2],
+            ['CardId' => 30, 'AddressBookId' => 3],
+            ['CardId' => 40, 'AddressBookId' => 4],
         ]);
 
         Api::skipCheckUserRole(true);
@@ -92,7 +104,9 @@ class PrepareFiltersFromStorageTest extends TestCase
 
     private function buildQuery($userId, $storage, $addressBookId = null)
     {
-        $query = Capsule::table('adav_cards')->select('adav_cards.id');
+        $query = Capsule::table('contacts_cards')
+            ->select('adav_cards.id')
+            ->join('adav_cards', 'contacts_cards.CardId', '=', 'adav_cards.id');
 
         $query->where(function ($whereQuery) use ($query, $userId, $storage, $addressBookId) {
             $aArgs = ['UserId' => $userId, 'Storage' => $storage, 'AddressBookId' => $addressBookId, 'Query' => $query];
