@@ -322,56 +322,40 @@ class Module extends \Aurora\System\Module\AbstractModule
             $aArgs['IsValid'] = true;
 
             $principalUri = Constants::PRINCIPALS_PREFIX . $oUser->PublicId;
-            $prefix = Capsule::connection()->getTablePrefix();
 
-            $mResult->orWhere(function ($q) use ($principalUri, $aArgs) {
-                $q->whereExists(function ($sub) use ($principalUri, $aArgs) {
-                    $sub->select(Capsule::connection()->raw(1))
-                        ->from('adav_shared_addressbooks')
-                        ->leftJoin('adav_addressbooks', 'adav_shared_addressbooks.addressbook_id', '=', 'adav_addressbooks.id')
-                        ->whereColumn('adav_shared_addressbooks.addressbook_id', 'adav_cards.addressbookid')
-                        ->where('adav_addressbooks.principaluri', '<>', $principalUri)
-                        ->where('adav_shared_addressbooks.principaluri', $principalUri);
+            // The ids have to be literal: with a subquery inside the OR the optimizer can't use
+            // the addressbookid index and scans all contacts of all users
+            $query = Capsule::connection()->table('adav_shared_addressbooks')
+                ->leftJoin('adav_addressbooks', 'adav_shared_addressbooks.addressbook_id', '=', 'adav_addressbooks.id')
+                ->where('adav_addressbooks.principaluri', '<>', $principalUri)
+                ->where('adav_shared_addressbooks.principaluri', $principalUri);
 
-                    if ($aArgs['Storage'] === StorageType::Shared && isset($aArgs['AddressBookId'])) {
-                        $sub->where('addressbook_id', (int) $aArgs['AddressBookId']);
-                    }
-                });
-            });
+            if ($aArgs['Storage'] === StorageType::Shared && isset($aArgs['AddressBookId'])) {
+                $query->where('addressbook_id', (int) $aArgs['AddressBookId']);
+            }
 
-            $sharedWithAllId = null;
+            $ids = $query->pluck('addressbook_id')->map(function ($id) {
+                return (int) $id;
+            })->all();
+
             if ($aArgs['Storage'] === StorageType::All && empty($aArgs['AddressBookId'])) {
                 $addressbook = $this->GetSharedWithAllAddressbook($oUser->Id);
                 if ($addressbook) {
-                    $sharedWithAllId = (int) $addressbook['id'];
-                    $mResult->orWhere('adav_cards.addressbookid', $sharedWithAllId);
+                    $ids[] = (int) $addressbook['id'];
                 }
             }
 
+            // Also needed for an empty list: without any condition the query would return all contacts
+            $mResult->orWhereIn('adav_cards.addressbookid', $ids);
+
             if (isset($aArgs['Query'])) {
-                $pdo = Capsule::connection()->getPdo();
-                $quotedPrincipalUri = $pdo->quote($principalUri);
-
-                $sharedCase = 'CASE WHEN EXISTS (
-                    SELECT 1 FROM ' . $prefix . 'adav_shared_addressbooks
-                    LEFT JOIN ' . $prefix . 'adav_addressbooks ON ' . $prefix . 'adav_shared_addressbooks.addressbook_id = ' . $prefix . 'adav_addressbooks.id
-                    WHERE ' . $prefix . 'adav_shared_addressbooks.addressbook_id = ' . $prefix . 'adav_cards.addressbookid
-                    AND ' . $prefix . 'adav_addressbooks.principaluri <> ' . $quotedPrincipalUri . '
-                    AND ' . $prefix . 'adav_shared_addressbooks.principaluri = ' . $quotedPrincipalUri;
-
-                if ($aArgs['Storage'] === StorageType::Shared && isset($aArgs['AddressBookId'])) {
-                    $sharedCase .= ' AND ' . $prefix . 'adav_shared_addressbooks.addressbook_id = ' . (int) $aArgs['AddressBookId'];
+                $sharedSelect = 'false as Shared';
+                if ($ids) {
+                    $prefix = Capsule::connection()->getTablePrefix();
+                    $sharedSelect = 'CASE WHEN ' . $prefix . 'adav_cards.addressbookid IN (' . implode(',', $ids) . ') THEN true ELSE false END as Shared';
                 }
 
-                $sharedCase .= ')';
-
-                if ($sharedWithAllId !== null) {
-                    $sharedCase .= ' OR ' . $prefix . 'adav_cards.addressbookid = ' . $sharedWithAllId;
-                }
-
-                $sharedCase .= ' THEN true ELSE false END as Shared';
-
-                $aArgs['Query']->addSelect(Capsule::connection()->raw($sharedCase));
+                $aArgs['Query']->addSelect(Capsule::connection()->raw($sharedSelect));
             }
         }
     }
